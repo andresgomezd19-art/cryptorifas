@@ -13,7 +13,7 @@ import os
 import re
 import smtplib
 from email.message import EmailMessage
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 try:
     import psycopg2
@@ -27,7 +27,7 @@ app = FastAPI(title="CryptoRifas API - Producción")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -60,6 +60,7 @@ CONTRASENAS_COMUNES = {
     "abcd1234", "iloveyou", "welcome1", "cryptorifas", "binance123", "venezuela1"
 }
 
+
 # --- ABSTRACCIÓN DE CONEXIÓN (POSTGRESQL / SQLITE) ---
 class DBConnectionWrapper:
     def __init__(self, raw_conn, is_postgres: bool):
@@ -80,6 +81,7 @@ class DBConnectionWrapper:
 
     def close(self):
         self.raw_conn.close()
+
 
 class DBCursorWrapper:
     def __init__(self, raw_cursor, is_postgres: bool):
@@ -119,13 +121,15 @@ class DBCursorWrapper:
     def rowcount(self):
         return self.raw_cursor.rowcount
 
+
 def get_conn() -> DBConnectionWrapper:
     if USAR_POSTGRES:
-        conn = psycopg2.connect(DATABASE_URL)
+        conn = psycopg2.connect(DATABASE_URL, connect_timeout=10)
         return DBConnectionWrapper(conn, True)
     conn = sqlite3.connect(SQLITE_PATH)
     conn.row_factory = sqlite3.Row
     return DBConnectionWrapper(conn, False)
+
 
 def es_error_duplicado(exc: Exception) -> bool:
     if USAR_POSTGRES and isinstance(exc, psycopg2.IntegrityError):
@@ -134,18 +138,23 @@ def es_error_duplicado(exc: Exception) -> bool:
         return True
     return False
 
+
 # --- SEGURIDAD DE CONTRASEÑAS ---
 def hash_password(password: str) -> str:
     salt = os.urandom(16).hex()
     dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000).hex()
     return f"{salt}${dk}"
 
+
 def verify_password(password: str, stored_hash: str) -> bool:
+    if not stored_hash:
+        return False
     if "$" not in stored_hash:
         return password == stored_hash
     salt, dk = stored_hash.split("$", 1)
     check_dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 100_000).hex()
     return check_dk == dk
+
 
 def validar_fortaleza_password(password: str, usuario: str = "", binance_id: str = ""):
     if len(password) < 8:
@@ -164,6 +173,7 @@ def validar_fortaleza_password(password: str, usuario: str = "", binance_id: str
         raise HTTPException(status_code=400, detail="La contraseña no puede contener tu nombre de usuario.")
     if binance_id and binance_id.strip() in password:
         raise HTTPException(status_code=400, detail="La contraseña no puede contener tu Binance ID.")
+
 
 # --- INICIALIZACIÓN DE BASE DE DATOS ---
 def init_db():
@@ -295,7 +305,9 @@ def init_db():
             )
 
     if USAR_POSTGRES:
-        cursor.execute("SELECT setval(pg_get_serial_sequence('salas', 'id'), COALESCE((SELECT MAX(id) FROM salas), 1))")
+        cursor.execute(
+            "SELECT setval(pg_get_serial_sequence('salas', 'id'), COALESCE((SELECT MAX(id) FROM salas), 1), true)"
+        )
 
     pagos_demo = [
         ("TX1000001", 10.0),
@@ -312,7 +324,12 @@ def init_db():
     conn.commit()
     conn.close()
 
-init_db()
+
+try:
+    init_db()
+except Exception as e:
+    print(f"[AVISO INIT_DB]: {e}")
+
 
 # --- MODELOS PYDANTIC ---
 class RegistroUsuario(BaseModel):
@@ -321,41 +338,50 @@ class RegistroUsuario(BaseModel):
     binance_id: str
     password: str
 
+
 class RegistroAdminSecreto(BaseModel):
     usuario: str
     email: str
     binance_id: str
     password: str
 
+
 class LoginUsuario(BaseModel):
     binance_id: str
     password: str
 
+
 class SolicitudRecuperacion(BaseModel):
     email: str
+
 
 class ConfirmarRecuperacion(BaseModel):
     email: str
     codigo: str
     nueva_password: str
 
+
 class CompraTicket(BaseModel):
     binance_id: str
     sala_id: int
     numero: int
 
+
 class RecargaBinance(BaseModel):
     binance_id: str
     tx_id: str
+
 
 class AjusteSaldo(BaseModel):
     binance_id_objetivo: str
     monto: float
     tipo: str
 
+
 class RegistrarPagoBinanceAdmin(BaseModel):
     tx_id: str
     monto_usdt: float
+
 
 # --- HELPERS ---
 def verificar_sistema_activo(binance_id_verificacion: str = None):
@@ -378,6 +404,7 @@ def verificar_sistema_activo(binance_id_verificacion: str = None):
             detail="CryptoRifas se encuentra en Modo Mantenimiento / Hibernación temporal. Intente más tarde."
         )
 
+
 def registrar_auditoria(admin_usuario: str, accion: str, detalle: str):
     conn = get_conn()
     cursor = conn.cursor()
@@ -388,6 +415,7 @@ def registrar_auditoria(admin_usuario: str, accion: str, detalle: str):
     conn.commit()
     conn.close()
 
+
 def validar_admin_por_binance(binance_id_admin: str):
     conn = get_conn()
     cursor = conn.cursor()
@@ -397,6 +425,7 @@ def validar_admin_por_binance(binance_id_admin: str):
     if not res or res["rol"] != "admin":
         raise HTTPException(status_code=403, detail="Acceso denegado.")
     return res["usuario"]
+
 
 def enviar_correo_codigo(destinatario: str, codigo: str) -> bool:
     if not SMTP_HOST or not SMTP_USER or not SMTP_PASS:
@@ -417,6 +446,7 @@ def enviar_correo_codigo(destinatario: str, codigo: str) -> bool:
         server.login(SMTP_USER, SMTP_PASS)
         server.send_message(msg)
     return True
+
 
 def _consultar_deposito_binance_real(tx_id: str) -> float:
     if not BINANCE_API_KEY or not BINANCE_API_SECRET:
@@ -452,6 +482,7 @@ def _consultar_deposito_binance_real(tx_id: str) -> float:
         detail="No se encontró un depósito en USDT confirmado en Binance con ese TXID."
     )
 
+
 def verificar_transaccion_binance(tx_id: str) -> float:
     if BINANCE_MODO_REAL:
         return _consultar_deposito_binance_real(tx_id)
@@ -472,6 +503,7 @@ def verificar_transaccion_binance(tx_id: str) -> float:
         )
     return float(pago["monto_usdt"])
 
+
 # --- ENDPOINTS PÚBLICOS ---
 @app.get("/")
 def raiz():
@@ -482,9 +514,11 @@ def raiz():
         "db_motor": "postgresql" if USAR_POSTGRES else "sqlite"
     }
 
+
 @app.get("/health")
 def health_check():
-    return {"status": "alive", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
+
 
 @app.get("/api/admin/existe")
 def verificar_admin_existe():
@@ -495,6 +529,7 @@ def verificar_admin_existe():
     cnt = row["total"] if isinstance(row, dict) else row[0]
     conn.close()
     return {"status": "ok", "existe_admin": cnt > 0}
+
 
 @app.post("/api/admin/registro-secreto")
 def registrar_admin_unico(datos: RegistroAdminSecreto):
@@ -543,6 +578,7 @@ def registrar_admin_unico(datos: RegistroAdminSecreto):
         "rol": "admin"
     }
 
+
 @app.get("/api/ganadores-publicos")
 def obtener_ganadores_publicos():
     conn = get_conn()
@@ -550,9 +586,15 @@ def obtener_ganadores_publicos():
     cursor.execute(
         "SELECT id, nombre_sala, numero_ganador, usuario_ganador, premio, fecha_pago FROM ganadores_historico ORDER BY id DESC LIMIT 20"
     )
-    historico = [dict(row) for row in cursor.fetchall()]
+    historico = []
+    for row in cursor.fetchall():
+        item = dict(row)
+        item["premio"] = float(item.get("premio") or 0.0)
+        item["fecha_pago"] = str(item.get("fecha_pago") or "")
+        historico.append(item)
     conn.close()
     return {"status": "ok", "ganadores": historico}
+
 
 @app.post("/api/registro")
 def registrar_usuario(datos: RegistroUsuario):
@@ -599,6 +641,7 @@ def registrar_usuario(datos: RegistroUsuario):
         "rol": "user"
     }
 
+
 @app.post("/api/login")
 def login_usuario(datos: LoginUsuario):
     binance_limpio = datos.binance_id.strip()
@@ -642,6 +685,7 @@ def login_usuario(datos: LoginUsuario):
         "rol": res["rol"]
     }
 
+
 @app.post("/api/recuperar/solicitar")
 def solicitar_recuperacion_password(datos: SolicitudRecuperacion):
     email_limpio = datos.email.strip().lower()
@@ -655,7 +699,7 @@ def solicitar_recuperacion_password(datos: SolicitudRecuperacion):
         raise HTTPException(status_code=404, detail="No existe ninguna cuenta asociada a ese correo electrónico.")
 
     codigo = f"{random.randint(100000, 999999)}"
-    expira = (datetime.utcnow() + timedelta(minutes=15)).isoformat()
+    expira = (datetime.now(timezone.utc) + timedelta(minutes=15)).isoformat()
 
     cursor.execute("UPDATE codigos_recuperacion SET usado = 1 WHERE email = ?", (email_limpio,))
     cursor.execute(
@@ -673,6 +717,7 @@ def solicitar_recuperacion_password(datos: SolicitudRecuperacion):
     if not enviado_smtp:
         respuesta["codigo_prueba"] = codigo
     return respuesta
+
 
 @app.post("/api/recuperar/confirmar")
 def confirmar_recuperacion_password(datos: ConfirmarRecuperacion):
@@ -700,7 +745,11 @@ def confirmar_recuperacion_password(datos: ConfirmarRecuperacion):
         conn.close()
         raise HTTPException(status_code=400, detail="Código de verificación inválido.")
 
-    if datetime.utcnow() > datetime.fromisoformat(registro_cod["expira_en"]):
+    expira_dt = datetime.fromisoformat(registro_cod["expira_en"])
+    if expira_dt.tzinfo is None:
+        expira_dt = expira_dt.replace(tzinfo=timezone.utc)
+
+    if datetime.now(timezone.utc) > expira_dt:
         conn.close()
         raise HTTPException(status_code=400, detail="El código ha expirado. Solicita uno nuevo.")
 
@@ -716,6 +765,7 @@ def confirmar_recuperacion_password(datos: ConfirmarRecuperacion):
         "status": "ok",
         "mensaje": f"Contraseña actualizada correctamente. Tu Binance ID de acceso es: {user['binance_id']}"
     }
+
 
 @app.get("/api/usuario/binance/{binance_id}")
 def obtener_info_usuario_por_binance(binance_id: str):
@@ -734,10 +784,11 @@ def obtener_info_usuario_por_binance(binance_id: str):
         "usuario": res["usuario"],
         "email": res["email"],
         "binance_id": res["binance_id"],
-        "saldo_usdt": float(res["saldo_usdt"]),
+        "saldo_usdt": float(res["saldo_usdt"] or 0.0),
         "rol": res["rol"],
         "binance_id_oficial": BINANCE_ID_OFICIAL
     }
+
 
 @app.post("/api/recargar-binance")
 def recargar_binance(datos: RecargaBinance):
@@ -777,7 +828,7 @@ def recargar_binance(datos: RecargaBinance):
             (user_row["usuario"], binance_limpio, tx_id_limpio, monto_verificado)
         )
         cursor.execute(
-            "UPDATE usuarios SET saldo_usdt = ROUND(saldo_usdt + ?, 2) WHERE binance_id = ?",
+            "UPDATE usuarios SET saldo_usdt = ROUND(CAST(saldo_usdt + ? AS NUMERIC), 2) WHERE binance_id = ?" if USAR_POSTGRES else "UPDATE usuarios SET saldo_usdt = ROUND(saldo_usdt + ?, 2) WHERE binance_id = ?",
             (monto_verificado, binance_limpio)
         )
         conn.commit()
@@ -796,6 +847,7 @@ def recargar_binance(datos: RecargaBinance):
         "mensaje": f"Pago verificado automáticamente. Se acreditaron ${monto_verificado:.2f} USDT a tu saldo."
     }
 
+
 @app.get("/api/salas")
 def listar_salas():
     conn = get_conn()
@@ -806,12 +858,20 @@ def listar_salas():
         s = dict(row)
         cursor.execute("SELECT COUNT(*) AS total FROM tickets_comprados WHERE sala_id = ?", (s["id"],))
         cnt_row = cursor.fetchone()
-        s["tickets_vendidos"] = cnt_row["total"] if isinstance(cnt_row, dict) else cnt_row[0]
-        s["pozo_total"] = float(s["total_tickets"]) * float(s["precio_ticket"])
-        s["premio_estimado"] = float(s["pozo_total"]) * float(s["porcentaje_premio"])
+        vendidos = cnt_row["total"] if isinstance(cnt_row, dict) else cnt_row[0]
+        total_tk = int(s["total_tickets"] or 0)
+        precio_tk = float(s["precio_ticket"] or 0.0)
+        porc_premio = float(s["porcentaje_premio"] or 0.0)
+        s["id"] = int(s["id"])
+        s["tickets_vendidos"] = int(vendidos or 0)
+        s["total_tickets"] = total_tk
+        s["precio_ticket"] = precio_tk
+        s["pozo_total"] = round(total_tk * precio_tk, 2)
+        s["premio_estimado"] = round((total_tk * precio_tk) * porc_premio, 2)
         salas.append(s)
     conn.close()
     return {"status": "ok", "salas": salas, "binance_id_oficial": BINANCE_ID_OFICIAL}
+
 
 @app.get("/api/sala/{sala_id}/numeros")
 def obtener_numeros_sala(sala_id: int):
@@ -835,10 +895,11 @@ def obtener_numeros_sala(sala_id: int):
     return {
         "status": "ok",
         "nombre_sala": sala_info["nombre"],
-        "total_tickets": sala_info["total_tickets"],
+        "total_tickets": int(sala_info["total_tickets"]),
         "precio_ticket": float(sala_info["precio_ticket"]),
         "tickets_comprados": comprados
     }
+
 
 @app.post("/api/comprar-ticket")
 def comprar_ticket(datos: CompraTicket):
@@ -873,10 +934,12 @@ def comprar_ticket(datos: CompraTicket):
         raise HTTPException(status_code=400, detail="Saldo insuficiente.")
 
     try:
-        cursor.execute(
-            "UPDATE usuarios SET saldo_usdt = ROUND(saldo_usdt - ?, 2) WHERE binance_id = ? AND saldo_usdt >= ?",
-            (precio, binance_limpio, precio)
+        sql_saldo = (
+            "UPDATE usuarios SET saldo_usdt = ROUND(CAST(saldo_usdt - ? AS NUMERIC), 2) WHERE binance_id = ? AND saldo_usdt >= ?"
+            if USAR_POSTGRES else
+            "UPDATE usuarios SET saldo_usdt = ROUND(saldo_usdt - ?, 2) WHERE binance_id = ? AND saldo_usdt >= ?"
         )
+        cursor.execute(sql_saldo, (precio, binance_limpio, precio))
         if cursor.rowcount == 0:
             conn.rollback()
             conn.close()
@@ -922,6 +985,7 @@ def comprar_ticket(datos: CompraTicket):
     conn.close()
     return {"status": "ok", "mensaje": mensaje_extra}
 
+
 # --- FUNCIONES DE ADMINISTRADOR ---
 @app.post("/api/admin/pagos/registrar-tx")
 def registrar_pago_verificado_admin(datos: RegistrarPagoBinanceAdmin, binance_id_verificacion: str):
@@ -954,6 +1018,7 @@ def registrar_pago_verificado_admin(datos: RegistrarPagoBinanceAdmin, binance_id
     registrar_auditoria(admin_nombre, "TX_VERIFICADO", f"TXID {tx_limpio} registrado por ${monto_redondeado:.2f} USDT")
     return {"status": "ok", "mensaje": f"TXID {tx_limpio} (${monto_redondeado:.2f} USDT) listo para ser reclamado."}
 
+
 @app.post("/api/admin/hibernacion/toggle")
 def toggle_hibernacion(binance_id_verificacion: str):
     verificar_sistema_activo(binance_id_verificacion)
@@ -971,6 +1036,7 @@ def toggle_hibernacion(binance_id_verificacion: str):
 
     registrar_auditoria(admin_nombre, "MODO_HIBERNACION", f"Estado cambiado a: {nuevo}")
     return {"status": "ok", "mensaje": f"Modo Hibernación cambiado a: {nuevo.upper()}"}
+
 
 @app.post("/api/admin/sala/{sala_id}/forzar-sorteo")
 def forzar_sorteo_prueba(sala_id: int, binance_id_verificacion: str):
@@ -1031,6 +1097,7 @@ def forzar_sorteo_prueba(sala_id: int, binance_id_verificacion: str):
         "mensaje": f"Sorteo de prueba forzado en {sala['nombre']}. Ganador: #{ganador['numero']} ({ganador['usuario']} - ID {ganador['binance_id']})."
     }
 
+
 @app.post("/api/admin/usuario/ajustar-saldo")
 def ajustar_saldo_usuario(datos: AjusteSaldo, binance_id_verificacion: str):
     verificar_sistema_activo(binance_id_verificacion)
@@ -1052,10 +1119,12 @@ def ajustar_saldo_usuario(datos: AjusteSaldo, binance_id_verificacion: str):
         raise HTTPException(status_code=404, detail="Usuario objetivo no encontrado por Binance ID.")
 
     if datos.tipo == "sumar":
-        cursor.execute(
-            "UPDATE usuarios SET saldo_usdt = ROUND(saldo_usdt + ?, 2) WHERE binance_id = ?",
-            (float(datos.monto), objetivo_id)
+        sql_sumar = (
+            "UPDATE usuarios SET saldo_usdt = ROUND(CAST(saldo_usdt + ? AS NUMERIC), 2) WHERE binance_id = ?"
+            if USAR_POSTGRES else
+            "UPDATE usuarios SET saldo_usdt = ROUND(saldo_usdt + ?, 2) WHERE binance_id = ?"
         )
+        cursor.execute(sql_sumar, (float(datos.monto), objetivo_id))
     else:
         nuevo_saldo = max(0.0, round(float(objetivo["saldo_usdt"]) - float(datos.monto), 2))
         cursor.execute(
@@ -1074,6 +1143,7 @@ def ajustar_saldo_usuario(datos: AjusteSaldo, binance_id_verificacion: str):
     )
     return {"status": "ok", "mensaje": f"Saldo de {objetivo['usuario']} (ID: {objetivo_id}) actualizado correctamente."}
 
+
 @app.get("/api/admin/ganadores")
 def obtener_ganadores_admin(binance_id_verificacion: str):
     verificar_sistema_activo(binance_id_verificacion)
@@ -1084,14 +1154,25 @@ def obtener_ganadores_admin(binance_id_verificacion: str):
     cursor.execute(
         "SELECT id, sala_id, nombre_sala, numero_ganador, usuario_ganador, binance_id_ganador, premio, fecha FROM historial_ganadores ORDER BY id DESC"
     )
-    pendientes = [dict(row) for row in cursor.fetchall()]
+    pendientes = []
+    for row in cursor.fetchall():
+        item = dict(row)
+        item["premio"] = float(item.get("premio") or 0.0)
+        item["fecha"] = str(item.get("fecha") or "")
+        pendientes.append(item)
 
     cursor.execute(
         "SELECT id, sala_id, nombre_sala, numero_ganador, usuario_ganador, binance_id_ganador, premio, fecha_pago FROM ganadores_historico ORDER BY id DESC LIMIT 50"
     )
-    historico = [dict(row) for row in cursor.fetchall()]
+    historico = []
+    for row in cursor.fetchall():
+        item = dict(row)
+        item["premio"] = float(item.get("premio") or 0.0)
+        item["fecha_pago"] = str(item.get("fecha_pago") or "")
+        historico.append(item)
     conn.close()
     return {"status": "ok", "ganadores": pendientes, "historico": historico}
+
 
 @app.delete("/api/admin/ganador/{ganador_id}")
 def eliminar_ganador(ganador_id: int, binance_id_verificacion: str):
@@ -1116,6 +1197,7 @@ def eliminar_ganador(ganador_id: int, binance_id_verificacion: str):
     registrar_auditoria(admin_nombre, "PAGO_GANADOR", f"Ganador ID {ganador_id} marcado como pagado y archivado.")
     return {"status": "ok", "mensaje": "Ganador marcado como pagado y movido al archivo histórico."}
 
+
 @app.get("/api/admin/usuarios")
 def obtener_usuarios(binance_id_verificacion: str):
     verificar_sistema_activo(binance_id_verificacion)
@@ -1124,9 +1206,14 @@ def obtener_usuarios(binance_id_verificacion: str):
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute("SELECT id, usuario, email, binance_id, rol, saldo_usdt FROM usuarios ORDER BY id ASC")
-    filas = [dict(row) for row in cursor.fetchall()]
+    filas = []
+    for row in cursor.fetchall():
+        item = dict(row)
+        item["saldo_usdt"] = float(item.get("saldo_usdt") or 0.0)
+        filas.append(item)
     conn.close()
     return {"status": "ok", "usuarios": filas}
+
 
 @app.get("/api/admin/logs")
 def obtener_logs_auditoria(binance_id_verificacion: str):
@@ -1136,6 +1223,10 @@ def obtener_logs_auditoria(binance_id_verificacion: str):
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM logs_auditoria ORDER BY id DESC LIMIT 100")
-    logs = [dict(row) for row in cursor.fetchall()]
+    logs = []
+    for row in cursor.fetchall():
+        item = dict(row)
+        item["fecha"] = str(item.get("fecha") or "")
+        logs.append(item)
     conn.close()
     return {"status": "ok", "logs": logs}
