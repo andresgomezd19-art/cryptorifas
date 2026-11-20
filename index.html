@@ -418,7 +418,9 @@
   </div>
 
   <script>
-    const API_URL = "http://127.0.0.1:8000";
+    const esLocal = ["localhost", "127.0.0.1", ""].includes(window.location.hostname);
+    const API_URL = esLocal ? "http://127.0.0.1:8000" : "https://criptorifas.onrender.com";
+
     let ticketsData = {};
     let salaActualId = 1;
     let totalTicketsSalaActual = 100;
