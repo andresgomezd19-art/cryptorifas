@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CryptoRifas - Sorteos Rápidos en USDT</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col font-sans">
+
+  <!-- NAVBAR -->
+  <header class="border-b border-slate-800 bg-slate-900/50 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+      <div class="flex items-center space-x-2">
+        <span class="text-2xl font-black text-yellow-400">⚡ CryptoRifas</span>
+      </div>
+      <div class="flex items-center space-x-3">
+        <div id="btn-recarga-container" class="hidden">
+          <button onclick="toggleModal('recarga-modal')" class="bg-green-500 hover:bg-green-400 text-slate-950 font-bold px-3 py-1.5 rounded-xl text-xs transition shadow-lg shadow-green-500/10 cursor-pointer flex items-center gap-1">
+            <span>💳 Recargar Saldo USDT</span>
+          </button>
+        </div>
+        <div class="bg-slate-800 px-4 py-1.5 rounded-full border border-slate-700 text-sm">
+          <span>Mi Saldo: </span><strong id="user-saldo" class="text-yellow-400">$0.00 USDT</strong>
+        </div>
+        <div id="auth-container">
+          <button onclick="toggleModal('login-modal')" class="bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-sm transition shadow-lg shadow-yellow-500/10 cursor-pointer">
+            Iniciar Sesión / Registro
+          </button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- CONTENIDO PRINCIPAL -->
+  <main class="flex-grow max-w-7xl mx-auto px-4 py-8 w-full space-y-12">
+
+    <section class="text-center my-6">
+      <h1 class="text-4xl md:text-5xl font-extrabold tracking-tight mb-4">
+        Gana <span class="text-yellow-400">USDT</span> al Instante con Sorteos 100% Transparentes
+      </h1>
+      <p class="text-slate-400 max-w-2xl mx-auto text-lg mb-4">
+        Recarga tu saldo USDT, elige tus números favoritos y participa en nuestras salas automáticas.
+      </p>
+      <div class="inline-block bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-4 py-2 text-xs text-yellow-300">
+        🕒 <strong>Nota Importante:</strong> Todas las recompensas a los ganadores serán atribuidas y pagadas en un horario comprendido <strong>de 5:00 PM a 12:00 AM</strong>.
+      </div>
+    </section>
+
+    <!-- PANEL DE ADMINISTRADOR -->
+    <section id="admin-panel" class="hidden bg-slate-900/80 border border-yellow-500/30 rounded-2xl p-6 shadow-2xl space-y-8">
+      <div class="flex justify-between items-center">
+        <h2 class="text-2xl font-bold flex items-center gap-2 text-yellow-400">
+          🛡️ <span>Panel de Control de Administrador</span>
+        </h2>
+        <button onclick="cerrarSesion()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer">
+          Cerrar Sesión
+        </button>
+      </div>
+
+      <!-- Control de Emergencia: Modo Hibernación -->
+      <div class="bg-slate-950/80 p-4 rounded-xl border border-red-500/20">
+        <h3 class="text-sm font-bold text-red-400 mb-2">🛑 Control de Emergencia (Modo Hibernación / Kill Switch)</h3>
+        <p class="text-xs text-slate-400 mb-3">Congela o reactiva de inmediato todas las compras y recargas en caso de emergencia:</p>
+        <button onclick="toggleHibernacion()" class="bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-slate-950 border border-red-500/40 px-3 py-2 rounded-lg text-xs font-bold transition cursor-pointer">🔄 Alternar Modo Hibernación</button>
+      </div>
+
+      <!-- Herramienta de Testeo Rápido de Salas -->
+      <div class="bg-slate-950/80 p-4 rounded-xl border border-yellow-500/20">
+        <h3 class="text-sm font-bold text-yellow-400 mb-2">🧪 Botón de Prueba: Completar Sala y Sortear al Instante</h3>
+        <p class="text-xs text-slate-400 mb-3">Llena los cupos vacíos de la sala seleccionada y ejecuta el sorteo de prueba de inmediato:</p>
+        <div class="flex flex-wrap gap-3">
+          <button onclick="forzarSorteoPrueba(1)" class="bg-yellow-500/20 hover:bg-yellow-500 text-yellow-300 hover:text-slate-950 border border-yellow-500/40 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer">⚡ Forzar Sala Flash (#1)</button>
+          <button onclick="forzarSorteoPrueba(2)" class="bg-yellow-500/20 hover:bg-yellow-500 text-yellow-300 hover:text-slate-950 border border-yellow-500/40 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer">⚡ Forzar Sala Pro (#2)</button>
+          <button onclick="forzarSorteoPrueba(3)" class="bg-yellow-500/20 hover:bg-yellow-500 text-yellow-300 hover:text-slate-950 border border-yellow-500/40 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer">⚡ Forzar Sala Élite (#3)</button>
+        </div>
+      </div>
+
+      <!-- Registrar TXID Verificado (Simulador de Pasarela Binance Pay) -->
+      <div class="bg-slate-950/80 p-4 rounded-xl border border-green-500/20">
+        <h3 class="text-sm font-bold text-green-400 mb-2">💳 Registrar TXID de Pago Verificado (Pruebas de Pasarela)</h3>
+        <p class="text-xs text-slate-400 mb-3">Carga aquí un TXID y su monto real recibido en Binance Pay para que el usuario lo reclame automáticamente con solo el código:</p>
+        <form onsubmit="registrarTxAdmin(event)" class="flex flex-col sm:flex-row gap-2">
+          <input id="admin-tx-id" type="text" placeholder="Ej: TX99887766" required class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white font-mono">
+          <input id="admin-tx-monto" type="number" step="0.01" min="0.01" placeholder="Monto USDT (Ej: 15.00)" required class="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+          <button type="submit" class="bg-green-500/20 hover:bg-green-500 text-green-300 hover:text-slate-950 border border-green-500/40 px-4 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer">Registrar TXID</button>
+        </form>
+      </div>
+
+      <!-- Sección 1: Ganadores Pendientes de Pago -->
+      <div>
+        <h3 class="text-lg font-bold text-green-400 mb-3 flex items-center gap-2">🏆 Ganadores Pendientes de Pago</h3>
+        <div class="overflow-x-auto bg-slate-950/60 rounded-xl border border-slate-800 p-2">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase">
+                <th class="py-3 px-4">Sala Ganadora</th>
+                <th class="py-3 px-4">Ganador (# Ticket)</th>
+                <th class="py-3 px-4">Usuario / ID</th>
+                <th class="py-3 px-4">Premio</th>
+                <th class="py-3 px-4 text-center">Acción (Pagar y Archivar)</th>
+              </tr>
+            </thead>
+            <tbody id="admin-ganadores-tabla" class="text-sm divide-y divide-slate-800/60">
+              <tr><td colspan="5" class="py-4 text-center text-slate-500 text-xs">No hay ganadores pendientes de pago.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sección 2: Gestión de Usuarios y Ajuste de Saldo -->
+      <div>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-3 gap-2">
+          <h3 class="text-lg font-bold text-slate-300 flex items-center gap-2">👤 Lista de Usuarios y Ajuste de Saldo</h3>
+          <input id="buscador-usuarios" type="text" onkeyup="filtrarTablaUsuarios()" placeholder="🔍 Buscar por usuario, correo o ID..." class="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-yellow-400">
+        </div>
+        <div class="overflow-x-auto bg-slate-950/60 rounded-xl border border-slate-800 p-2">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase">
+                <th class="py-3 px-4">ID</th>
+                <th class="py-3 px-4">Usuario</th>
+                <th class="py-3 px-4">Correo</th>
+                <th class="py-3 px-4">Binance ID</th>
+                <th class="py-3 px-4">Saldo USDT</th>
+                <th class="py-3 px-4 text-center">Ajuste Manual Saldo</th>
+              </tr>
+            </thead>
+            <tbody id="admin-usuarios-tabla" class="text-sm divide-y divide-slate-800/60"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sección 3: Histórico Permanente de Ganadores -->
+      <div>
+        <h3 class="text-lg font-bold text-blue-400 mb-3 flex items-center gap-2">📜 Archivo Histórico de Ganadores Pagados</h3>
+        <div class="overflow-x-auto bg-slate-950/60 rounded-xl border border-slate-800 p-2 max-h-60">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase">
+                <th class="py-3 px-4">Sala</th>
+                <th class="py-3 px-4">Ganador</th>
+                <th class="py-3 px-4">Premio</th>
+                <th class="py-3 px-4">Fecha de Pago</th>
+              </tr>
+            </thead>
+            <tbody id="admin-historico-tabla" class="text-xs divide-y divide-slate-800/60 text-slate-400">
+              <tr><td colspan="4" class="py-3 text-center">Sin registros históricos aún.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Sección 4: Caja Negra (Logs de Auditoría) -->
+      <div>
+        <h3 class="text-lg font-bold text-purple-400 mb-3 flex items-center gap-2">📦 Caja Negra (Registro de Auditoría Admin)</h3>
+        <div class="overflow-x-auto bg-slate-950/60 rounded-xl border border-slate-800 p-2 max-h-60">
+          <table class="w-full text-left border-collapse">
+            <thead>
+              <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase">
+                <th class="py-3 px-4">Admin</th>
+                <th class="py-3 px-4">Acción</th>
+                <th class="py-3 px-4">Detalle</th>
+                <th class="py-3 px-4">Fecha</th>
+              </tr>
+            </thead>
+            <tbody id="admin-logs-tabla" class="text-xs divide-y divide-slate-800/60 text-slate-400">
+              <tr><td colspan="4" class="py-3 text-center">Sin registros de auditoría aún.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SALAS DINÁMICAS -->
+    <section>
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+        🔥 <span class="border-b-2 border-yellow-400 pb-1">Salas Disponibles</span>
+      </h2>
+      <div id="grid-salas" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+    </section>
+
+    <!-- MURO DE LA FAMA (PÚBLICO) -->
+    <section>
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+        🏆 <span class="border-b-2 border-yellow-400 pb-1">Muro de la Fama (Últimos Ganadores)</span>
+      </h2>
+      <div class="bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-slate-800 text-xs text-slate-400 uppercase">
+              <th class="py-3 px-4">Sala Ganadora</th>
+              <th class="py-3 px-4">Ganador (# Ticket)</th>
+              <th class="py-3 px-4">Premio Cobrado</th>
+              <th class="py-3 px-4">Fecha de Pago</th>
+            </tr>
+          </thead>
+          <tbody id="muro-fama-tabla" class="text-xs divide-y divide-slate-800/60 text-slate-300">
+            <tr><td colspan="4" class="py-4 text-center text-slate-500">Cargando ganadores recientes...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODAL DE RECARGA AUTOMÁTICA POR TXID -->
+  <div id="recarga-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full relative shadow-2xl">
+      <button onclick="toggleModal('recarga-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl cursor-pointer">✕</button>
+      <h3 class="text-2xl font-bold mb-1 text-green-400 text-center">💳 Recarga Automática USDT</h3>
+      <p class="text-slate-400 text-xs text-center mb-4">El sistema detecta y acredita el monto exacto de tu pago</p>
+
+      <div class="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 mb-4 text-xs text-amber-300 leading-relaxed">
+        ⚠️ <strong>Aviso:</strong> Todo fondo transferido es <strong>definitivo y no reembolsable</strong>.
+      </div>
+
+      <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 mb-5 text-xs space-y-2">
+        <p class="text-slate-300 font-semibold">Instrucciones:</p>
+        <p class="text-slate-400">1. Transfiere en Binance Pay a nuestro ID oficial:</p>
+        <p class="text-yellow-400 font-mono font-bold text-center bg-slate-900 py-1.5 rounded border border-slate-800 text-sm">@CryptoRifasOfficial (ID: 1115628237)</p>
+        <p class="text-slate-400">2. Pega únicamente el <strong>ID de Transacción (TXID)</strong>. El monto pagado se verificará y cargará de inmediato.</p>
+      </div>
+
+      <form onsubmit="procesarRecargaBinance(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">ID de Transacción (TXID)</label>
+          <input id="input-txid" type="text" placeholder="Ej: TX1000001" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 text-sm font-mono">
+        </div>
+        <button type="submit" class="w-full bg-green-500 hover:bg-green-400 text-slate-950 font-bold py-3 rounded-xl transition cursor-pointer shadow-lg shadow-green-500/10">
+          Verificar Pago y Acreditar Saldo
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL DE SELECCIÓN DE NÚMEROS -->
+  <div id="numeros-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-3xl w-full relative shadow-2xl flex flex-col max-h-[90vh]">
+      <button onclick="toggleModal('numeros-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl cursor-pointer">✕</button>
+      <h3 id="titulo-modal-sala" class="text-2xl font-bold text-yellow-400 mb-1">Elegir Números</h3>
+      <p id="subtitulo-modal-tickets" class="text-slate-400 text-xs mb-3">Tu saldo disponible es <strong>$0.00 USDT</strong>.</p>
+
+      <div class="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-2.5 mb-4 text-[11px] text-yellow-300">
+        💡 <strong>Recordatorio:</strong> Los premios de esta sala se acreditan de <strong>5:00 PM a 12:00 AM</strong> al resultar ganador.
+      </div>
+
+      <div class="flex gap-2 mb-3">
+        <button onclick="filtrarNumeros('todos')" id="btn-filtro-todos" class="bg-yellow-500 text-slate-950 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer">Todos</button>
+        <button onclick="filtrarNumeros('disponibles')" id="btn-filtro-disponibles" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer">Solo Disponibles</button>
+        <button onclick="filtrarNumeros('mios')" id="btn-filtro-mios" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer">Mis Tickets</button>
+      </div>
+
+      <div class="flex gap-4 text-xs mb-3 border-y border-slate-800 py-2">
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-slate-800 border border-slate-700 rounded-sm inline-block"></span> Disponible</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-red-900/60 border border-red-500/30 rounded-sm inline-block"></span> Ocupado</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-yellow-500 rounded-sm inline-block"></span> Tuyo</span>
+      </div>
+
+      <div id="grid-numeros" class="grid grid-cols-5 sm:grid-cols-10 gap-2 overflow-y-auto p-2 bg-slate-950/50 rounded-xl border border-slate-800 flex-grow max-h-[50vh]"></div>
+    </div>
+  </div>
+
+  <!-- MODAL DE LOGIN / REGISTRO / RECUPERACIÓN -->
+  <div id="login-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full relative shadow-2xl max-h-[92vh] overflow-y-auto">
+      <button onclick="toggleModal('login-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl cursor-pointer">✕</button>
+
+      <div class="flex border-b border-slate-800 mb-5">
+        <button id="tab-login-btn" onclick="cambiarTabAuth('login')" class="flex-1 pb-3 text-sm font-bold text-yellow-400 border-b-2 border-yellow-400 transition cursor-pointer">Iniciar Sesión</button>
+        <button id="tab-registro-btn" onclick="cambiarTabAuth('registro')" class="flex-1 pb-3 text-sm font-bold text-slate-400 hover:text-slate-200 transition cursor-pointer">Registrarse</button>
+      </div>
+
+      <!-- FORMULARIO DE LOGIN -->
+      <form id="form-login" onsubmit="enviarLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Binance Pay ID</label>
+          <input id="login-binance" type="text" placeholder="Tu ID de Binance registrado" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 text-sm font-mono">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Contraseña</label>
+          <input id="login-password" type="password" placeholder="Tu contraseña secreta" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 text-sm">
+        </div>
+        <div class="text-right">
+          <button type="button" onclick="cambiarTabAuth('recuperar')" class="text-xs text-yellow-400 hover:underline cursor-pointer">
+            ¿Olvidaste tu contraseña?
+          </button>
+        </div>
+        <button type="submit" class="w-full bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold py-3 rounded-xl transition cursor-pointer">
+          Iniciar Sesión
+        </button>
+      </form>
+
+      <!-- FORMULARIO DE REGISTRO -->
+      <form id="form-registro" onsubmit="enviarRegistro(event)" class="space-y-4 hidden">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Nombre de Usuario</label>
+          <input id="input-usuario" type="text" oninput="evaluarSeguridadPassword('user')" placeholder="Ej: JuanPerez21" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Correo Electrónico (Obligatorio)</label>
+          <input id="input-email" type="email" placeholder="tucorreo@ejemplo.com" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Binance Pay ID (Único)</label>
+          <input id="input-binance" type="text" oninput="evaluarSeguridadPassword('user')" placeholder="Tu ID de Binance único" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 text-sm font-mono">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Contraseña Segura</label>
+          <input id="input-password" type="password" oninput="evaluarSeguridadPassword('user')" placeholder="Crea una contraseña fuerte" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2.5 text-slate-100 text-sm">
+
+          <!-- MEDIDOR VISUAL DE SEGURIDAD -->
+          <div class="mt-2 space-y-2 bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-400">Nivel de seguridad:</span>
+              <span id="pwd-nivel-texto" class="font-bold text-slate-400">Sin escribir</span>
+            </div>
+            <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div id="pwd-barra" class="h-2 rounded-full transition-all duration-300 bg-slate-600" style="width: 0%"></div>
+            </div>
+            <ul class="text-[11px] space-y-1 text-slate-400">
+              <li id="req-len">• Mínimo 8 caracteres</li>
+              <li id="req-mayus">• Al menos una letra mayúscula (A-Z)</li>
+              <li id="req-minus">• Al menos una letra minúscula (a-z)</li>
+              <li id="req-num">• Al menos un número (0-9)</li>
+              <li id="req-comun">• No usar claves comunes ni tu usuario/ID</li>
+            </ul>
+          </div>
+        </div>
+        <button type="submit" class="w-full bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold py-3 rounded-xl transition cursor-pointer">
+          Crear Cuenta Nueva
+        </button>
+      </form>
+
+      <!-- FORMULARIO DE RECUPERACIÓN DE CONTRASEÑA -->
+      <div id="form-recuperar" class="space-y-4 hidden">
+        <div class="text-xs text-slate-300 bg-slate-950/80 p-3 rounded-xl border border-slate-800">
+          Ingresa el correo electrónico con el que te registraste. Te enviaremos un código de verificación para restablecer tu clave.
+        </div>
+
+        <form onsubmit="solicitarCodigoRecuperacion(event)" class="space-y-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Correo Electrónico Registrado</label>
+            <input id="recup-email" type="email" placeholder="tucorreo@ejemplo.com" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-slate-100 text-sm">
+          </div>
+          <button type="submit" class="w-full bg-blue-500 hover:bg-blue-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer">
+            Enviar Código de Verificación al Correo
+          </button>
+        </form>
+
+        <form id="form-confirmar-recup" onsubmit="confirmarCambioPassword(event)" class="space-y-3 hidden border-t border-slate-800 pt-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Código de 6 Dígitos</label>
+            <input id="recup-codigo" type="text" placeholder="Ej: 482910" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-slate-100 text-sm font-mono">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Nueva Contraseña Segura</label>
+            <input id="recup-nueva-pwd" type="password" placeholder="Mín. 8 caracteres, mayús, minús y número" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-slate-100 text-sm">
+          </div>
+          <button type="submit" class="w-full bg-green-500 hover:bg-green-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs transition cursor-pointer">
+            Guardar Nueva Contraseña
+          </button>
+        </form>
+
+        <div class="text-center pt-1">
+          <button type="button" onclick="cambiarTabAuth('login')" class="text-xs text-slate-400 hover:text-white cursor-pointer">
+            ← Volver a Iniciar Sesión
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL SECRETO DE REGISTRO DE ADMINISTRADOR ÚNICO (Ctrl + Alt + 4) -->
+  <div id="admin-secret-modal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-md hidden flex items-center justify-center p-4 z-50">
+    <div class="bg-slate-900 border border-yellow-500/40 rounded-2xl p-6 max-w-md w-full relative shadow-2xl">
+      <button onclick="toggleModal('admin-secret-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-white text-xl cursor-pointer">✕</button>
+      <div class="text-center mb-4">
+        <span class="bg-yellow-500/10 text-yellow-400 border border-yellow-500/30 text-[11px] font-bold px-3 py-1 rounded-full">
+          🔐 ACCESO MAESTRO DEL SISTEMA
+        </span>
+        <h3 class="text-xl font-extrabold text-white mt-2">Registrar Administrador Único</h3>
+        <p class="text-xs text-slate-400 mt-1">Una vez creada esta cuenta, el registro maestro quedará bloqueado permanentemente.</p>
+      </div>
+
+      <form onsubmit="enviarRegistroAdminSecreto(event)" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Nombre del Administrador</label>
+          <input id="admin-sec-usuario" type="text" oninput="evaluarSeguridadPassword('admin')" placeholder="Tu nombre de Admin" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-slate-100 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Correo de Seguridad</label>
+          <input id="admin-sec-email" type="email" placeholder="admin@tudominio.com" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-slate-100 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">ID Único de Administrador</label>
+          <input id="admin-sec-binance" type="text" value="00000000" readonly class="w-full bg-slate-950 border border-yellow-500/30 rounded-xl px-4 py-2 text-yellow-400 text-sm font-mono font-bold">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Contraseña Maestra</label>
+          <input id="admin-sec-password" type="password" oninput="evaluarSeguridadPassword('admin')" placeholder="Contraseña fuerte de administrador" required class="w-full bg-slate-800 border border-slate-700 rounded-xl px-4 py-2 text-slate-100 text-sm">
+
+          <div class="mt-2 space-y-1.5 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800">
+            <div class="flex justify-between items-center text-[11px]">
+              <span class="text-slate-400">Seguridad:</span>
+              <span id="admin-pwd-nivel-texto" class="font-bold text-slate-400">Sin escribir</span>
+            </div>
+            <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+              <div id="admin-pwd-barra" class="h-2 rounded-full transition-all duration-300 bg-slate-600" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+        <button type="submit" class="w-full bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold py-3 rounded-xl transition cursor-pointer">
+          Crear Administrador Único
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "http://127.0.0.1:8000";
+    let ticketsData = {};
+    let salaActualId = 1;
+    let totalTicketsSalaActual = 100;
+    let precioTicketActual = 2.0;
+    let filtroActual = "todos";
+    let saldoUsuario = 0.0;
+
+    const CLAVES_COMUNES = [
+      "12345678", "123456789", "1234567890", "password", "password1", "password123",
+      "qwertyui", "qwerty123", "admin123", "admin1234", "00000000", "11111111",
+      "abcd1234", "iloveyou", "welcome1", "cryptorifas", "binance123", "venezuela1"
+    ];
+
+    // Atajo secreto Ctrl + Alt + 4 para abrir el registro único de Administrador
+    document.addEventListener("keydown", async (e) => {
+      if (e.ctrlKey && e.altKey && (e.key === "4" || e.code === "Digit4")) {
+        e.preventDefault();
+        try {
+          const res = await fetch(`${API_URL}/api/admin/existe`);
+          const data = await res.json();
+          if (res.ok && data.existe_admin) {
+            alert("🔒 El administrador único ya está registrado. Inicia sesión normalmente con el ID 00000000.");
+          } else {
+            toggleModal("admin-secret-modal");
+          }
+        } catch (err) {
+          alert("⚠️ No se pudo verificar el estado del sistema.");
+        }
+      }
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const usuarioGuardado = localStorage.getItem("usuario");
+      const binanceGuardado = localStorage.getItem("binance_id");
+      const rolGuardado = localStorage.getItem("rol");
+
+      if (usuarioGuardado && binanceGuardado) {
+        actualizarInterfazLogin(usuarioGuardado, binanceGuardado, rolGuardado);
+        cargarInfoUsuarioPorBinance(binanceGuardado);
+        document.getElementById("btn-recarga-container").classList.remove("hidden");
+        if (rolGuardado === "admin") {
+          cargarPanelAdmin(binanceGuardado);
+        }
+      }
+      cargarSalasDisponibles();
+      cargarMuroFama();
+    });
+
+    function toggleModal(modalId) {
+      document.getElementById(modalId).classList.toggle("hidden");
+    }
+
+    function cambiarTabAuth(tipo) {
+      const btnLogin = document.getElementById("tab-login-btn");
+      const btnRegistro = document.getElementById("tab-registro-btn");
+      const formLogin = document.getElementById("form-login");
+      const formRegistro = document.getElementById("form-registro");
+      const formRecuperar = document.getElementById("form-recuperar");
+
+      formLogin.classList.add("hidden");
+      formRegistro.classList.add("hidden");
+      formRecuperar.classList.add("hidden");
+
+      if (tipo === "login") {
+        btnLogin.className = "flex-1 pb-3 text-sm font-bold text-yellow-400 border-b-2 border-yellow-400 transition cursor-pointer";
+        btnRegistro.className = "flex-1 pb-3 text-sm font-bold text-slate-400 hover:text-slate-200 transition cursor-pointer";
+        formLogin.classList.remove("hidden");
+      } else if (tipo === "registro") {
+        btnRegistro.className = "flex-1 pb-3 text-sm font-bold text-yellow-400 border-b-2 border-yellow-400 transition cursor-pointer";
+        btnLogin.className = "flex-1 pb-3 text-sm font-bold text-slate-400 hover:text-slate-200 transition cursor-pointer";
+        formRegistro.classList.remove("hidden");
+      } else {
+        btnLogin.className = "flex-1 pb-3 text-sm font-bold text-slate-400 hover:text-slate-200 transition cursor-pointer";
+        btnRegistro.className = "flex-1 pb-3 text-sm font-bold text-slate-400 hover:text-slate-200 transition cursor-pointer";
+        formRecuperar.classList.remove("hidden");
+      }
+    }
+
+    function evaluarSeguridadPassword(contexto) {
+      const esAdmin = contexto === "admin";
+      const pwd = document.getElementById(esAdmin ? "admin-sec-password" : "input-password").value;
+      const usr = document.getElementById(esAdmin ? "admin-sec-usuario" : "input-usuario").value.trim().toLowerCase();
+      const bid = document.getElementById(esAdmin ? "admin-sec-binance" : "input-binance").value.trim();
+
+      const barra = document.getElementById(esAdmin ? "admin-pwd-barra" : "pwd-barra");
+      const texto = document.getElementById(esAdmin ? "admin-pwd-nivel-texto" : "pwd-nivel-texto");
+
+      const cumpleLen = pwd.length >= 8;
+      const cumpleMayus = /[A-Z]/.test(pwd);
+      const cumpleMinus = /[a-z]/.test(pwd);
+      const cumpleNum = /\d/.test(pwd);
+      const caracteresDistintos = new Set(pwd).size >= 4;
+      const noEsComun = pwd.length > 0 &&
+        !CLAVES_COMUNES.includes(pwd.toLowerCase()) &&
+        caracteresDistintos &&
+        (!usr || !pwd.toLowerCase().includes(usr)) &&
+        (!bid || !pwd.includes(bid));
+
+      if (!esAdmin) {
+        actualizarItemReq("req-len", cumpleLen, "Mínimo 8 caracteres");
+        actualizarItemReq("req-mayus", cumpleMayus, "Al menos una letra mayúscula (A-Z)");
+        actualizarItemReq("req-minus", cumpleMinus, "Al menos una letra minúscula (a-z)");
+        actualizarItemReq("req-num", cumpleNum, "Al menos un número (0-9)");
+        actualizarItemReq("req-comun", noEsComun, "No usar claves comunes ni tu usuario/ID");
+      }
+
+      if (!pwd) {
+        barra.style.width = "0%";
+        barra.className = "h-2 rounded-full transition-all duration-300 bg-slate-600";
+        texto.innerText = "Sin escribir";
+        texto.className = "font-bold text-slate-400";
+        return;
+      }
+
+      const puntos = [cumpleLen, cumpleMayus, cumpleMinus, cumpleNum, noEsComun].filter(Boolean).length;
+
+      if (puntos <= 2 || !noEsComun) {
+        barra.style.width = "30%";
+        barra.className = "h-2 rounded-full transition-all duration-300 bg-red-500";
+        texto.innerText = "Débil / Vulnerable";
+        texto.className = "font-bold text-red-400";
+      } else if (puntos <= 4) {
+        barra.style.width = "65%";
+        barra.className = "h-2 rounded-full transition-all duration-300 bg-yellow-400";
+        texto.innerText = "Media (falta algún requisito)";
+        texto.className = "font-bold text-yellow-400";
+      } else {
+        barra.style.width = "100%";
+        barra.className = "h-2 rounded-full transition-all duration-300 bg-green-500";
+        texto.innerText = "Fuerte y Segura";
+        texto.className = "font-bold text-green-400";
+      }
+    }
+
+    function actualizarItemReq(id, cumplido, etiqueta) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.innerText = `${cumplido ? "✓" : "•"} ${etiqueta}`;
+      el.className = cumplido ? "text-green-400 font-semibold" : "text-slate-400";
+    }
+
+    async function cargarSalasDisponibles() {
+      try {
+        const res = await fetch(`${API_URL}/api/salas`);
+        const data = await res.json();
+        if (res.ok) {
+          const grid = document.getElementById("grid-salas");
+          grid.innerHTML = "";
+          data.salas.forEach(sala => {
+            const porcentaje = (sala.tickets_vendidos / sala.total_tickets) * 100;
+            const restantes = sala.total_tickets - sala.tickets_vendidos;
+
+            const card = document.createElement("div");
+            card.className = "bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl flex flex-col justify-between hover:border-slate-700 transition";
+            card.innerHTML = `
+              <div>
+                <div class="flex justify-between items-center mb-4">
+                  <span class="bg-green-500/10 text-green-400 text-xs font-bold px-3 py-1 rounded-full border border-green-500/20">🟢 ${sala.nombre}</span>
+                  <span class="text-xs text-slate-400">Ticket: $${sala.precio_ticket.toFixed(2)} USDT</span>
+                </div>
+                <h3 class="text-3xl font-extrabold text-yellow-400 mb-1">$${sala.premio_estimado.toFixed(2)} USDT</h3>
+                <p class="text-slate-400 text-sm mb-6">Premio al ganador</p>
+                <div class="w-full bg-slate-800 rounded-full h-3 mb-2 overflow-hidden">
+                  <div class="bg-yellow-500 h-3 rounded-full transition-all duration-300" style="width: ${porcentaje}%"></div>
+                </div>
+                <div class="flex justify-between text-xs text-slate-400 mb-6">
+                  <span>${sala.tickets_vendidos} / ${sala.total_tickets} Vendidos</span>
+                  <span class="text-yellow-400 font-semibold">${restantes} Restantes</span>
+                </div>
+              </div>
+              <button onclick="abrirSelectorNumeros(${sala.id})" class="w-full bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-yellow-500/10 cursor-pointer">
+                Elegir Mis Números
+              </button>
+            `;
+            grid.appendChild(card);
+          });
+        }
+      } catch (err) {
+        console.error("Error al cargar salas:", err);
+      }
+    }
+
+    async function cargarMuroFama() {
+      try {
+        const res = await fetch(`${API_URL}/api/ganadores-publicos`);
+        const data = await res.json();
+        if (res.ok) {
+          const tabla = document.getElementById("muro-fama-tabla");
+          tabla.innerHTML = "";
+          if (data.ganadores.length === 0) {
+            tabla.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-slate-500 text-xs">Aún no hay ganadores registrados. ¡Sé el primero en ganar!</td></tr>`;
+          } else {
+            data.ganadores.forEach(g => {
+              const fila = document.createElement("tr");
+              fila.className = "hover:bg-slate-800/40 transition";
+              fila.innerHTML = `
+                <td class="py-3 px-4 font-semibold text-yellow-400">${g.nombre_sala}</td>
+                <td class="py-3 px-4 text-white font-bold">${g.usuario_ganador} <span class="text-slate-400">(#${g.numero_ganador})</span></td>
+                <td class="py-3 px-4 font-extrabold text-green-400">$${g.premio.toFixed(2)} USDT</td>
+                <td class="py-3 px-4 text-slate-400">${g.fecha_pago}</td>
+              `;
+              tabla.appendChild(fila);
+            });
+          }
+        }
+      } catch (e) {
+        console.error("Error al cargar muro de fama:", e);
+      }
+    }
+
+    async function procesarRecargaBinance(event) {
+      event.preventDefault();
+      const binance_id = localStorage.getItem("binance_id");
+      const tx_id = document.getElementById("input-txid").value.trim();
+
+      try {
+        const res = await fetch(`${API_URL}/api/recargar-binance`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ binance_id, tx_id })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ " + data.mensaje);
+          toggleModal("recarga-modal");
+          document.getElementById("input-txid").value = "";
+          await cargarInfoUsuarioPorBinance(binance_id);
+          if (localStorage.getItem("rol") === "admin") {
+            await cargarPanelAdmin(binance_id);
+          }
+        } else {
+          alert("⚠️ " + (data.detail || "Error al verificar el pago"));
+        }
+      } catch (err) {
+        alert("⚠️ Error de conexión.");
+      }
+    }
+
+    async function cargarInfoUsuarioPorBinance(binanceId) {
+      try {
+        const res = await fetch(`${API_URL}/api/usuario/binance/${encodeURIComponent(binanceId.trim())}`);
+        const data = await res.json();
+        if (res.ok) {
+          saldoUsuario = data.saldo_usdt || 0.0;
+          document.getElementById("user-saldo").innerText = `$${saldoUsuario.toFixed(2)} USDT`;
+        }
+      } catch (err) {
+        console.error("Error al cargar usuario:", err);
+      }
+    }
+
+    async function abrirSelectorNumeros(salaId) {
+      const binanceId = localStorage.getItem("binance_id");
+      if (!binanceId) {
+        toggleModal("login-modal");
+        return;
+      }
+      salaActualId = salaId;
+      await cargarInfoUsuarioPorBinance(binanceId);
+
+      try {
+        const res = await fetch(`${API_URL}/api/sala/${salaId}/numeros`);
+        const data = await res.json();
+        if (res.ok) {
+          ticketsData = data.tickets_comprados;
+          totalTicketsSalaActual = data.total_tickets;
+          precioTicketActual = data.precio_ticket;
+
+          document.getElementById("titulo-modal-sala").innerText = `Elegir Números - ${data.nombre_sala}`;
+          document.getElementById("subtitulo-modal-tickets").innerHTML = `Tu saldo disponible es <strong>$${saldoUsuario.toFixed(2)} USDT</strong> (Costo: $${precioTicketActual.toFixed(2)}).`;
+
+          renderizarNumeros();
+          toggleModal("numeros-modal");
+        }
+      } catch (err) {
+        alert("⚠️ Error al conectar con la sala.");
+      }
+    }
+
+    function renderizarNumeros() {
+      const grid = document.getElementById("grid-numeros");
+      grid.innerHTML = "";
+      const miBinance = (localStorage.getItem("binance_id") || "").trim();
+
+      for (let i = 1; i <= totalTicketsSalaActual; i++) {
+        const infoTicket = ticketsData[i] || ticketsData[String(i)];
+        const estaOcupado = Boolean(infoTicket);
+        const esMio = estaOcupado && infoTicket.binance_id === miBinance;
+
+        if (filtroActual === "disponibles" && estaOcupado) continue;
+        if (filtroActual === "mios" && !esMio) continue;
+
+        const btn = document.createElement("button");
+        btn.innerText = i < 10 ? `0${i}` : i;
+        btn.dataset.numero = i;
+
+        if (esMio) {
+          btn.className = "p-2 text-xs font-bold bg-yellow-500 text-slate-950 rounded-lg shadow cursor-default";
+          btn.title = "Comprado por ti";
+          btn.disabled = true;
+        } else if (estaOcupado) {
+          btn.className = "p-2 text-xs font-bold bg-red-900/40 text-red-400 border border-red-500/20 rounded-lg cursor-not-allowed";
+          btn.title = `Comprado por ${infoTicket.usuario}`;
+          btn.disabled = true;
+        } else {
+          btn.className = "p-2 text-xs font-bold bg-slate-800 hover:bg-yellow-500 hover:text-slate-950 border border-slate-700 rounded-lg transition cursor-pointer";
+          btn.title = "Disponible";
+          btn.onclick = () => comprarNumero(salaActualId, i);
+        }
+        grid.appendChild(btn);
+      }
+    }
+
+    function filtrarNumeros(tipo) {
+      filtroActual = tipo;
+      ["todos", "disponibles", "mios"].forEach(t => {
+        const btn = document.getElementById(`btn-filtro-${t}`);
+        if (t === tipo) {
+          btn.className = "bg-yellow-500 text-slate-950 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer";
+        } else {
+          btn.className = "bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer";
+        }
+      });
+      renderizarNumeros();
+    }
+
+    async function comprarNumero(salaId, numero) {
+      const binance_id = localStorage.getItem("binance_id");
+      const usuario = localStorage.getItem("usuario");
+      if (saldoUsuario < precioTicketActual) {
+        alert(`⚠️ Saldo insuficiente ($${precioTicketActual.toFixed(2)} USDT requeridos).`);
+        return;
+      }
+
+      if (!confirm(`¿Deseas gastar $${precioTicketActual.toFixed(2)} USDT para elegir el número #${numero}?`)) return;
+
+      try {
+        const res = await fetch(`${API_URL}/api/comprar-ticket`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ binance_id, sala_id: salaId, numero })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          saldoUsuario = Math.max(0, saldoUsuario - precioTicketActual);
+          document.getElementById("user-saldo").innerText = `$${saldoUsuario.toFixed(2)} USDT`;
+          ticketsData[numero] = { usuario, binance_id };
+
+          if (data.mensaje && data.mensaje.includes("SORTEADA")) {
+            alert(data.mensaje);
+            toggleModal("numeros-modal");
+            await cargarSalasDisponibles();
+            await cargarMuroFama();
+            if (localStorage.getItem("rol") === "admin") {
+              await cargarPanelAdmin(binance_id);
+            }
+          } else {
+            renderizarNumeros();
+            await cargarSalasDisponibles();
+          }
+        } else {
+          alert("⚠️ " + (data.detail || "Error al comprar"));
+        }
+      } catch (err) {
+        alert("⚠️ Error de conexión.");
+      }
+    }
+
+    async function enviarLogin(event) {
+      event.preventDefault();
+      const binanceVal = document.getElementById("login-binance").value.trim();
+      const passwordVal = document.getElementById("login-password").value;
+
+      try {
+        const respuesta = await fetch(`${API_URL}/api/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ binance_id: binanceVal, password: passwordVal })
+        });
+        const resultado = await respuesta.json();
+        if (respuesta.ok && resultado.status === "ok") {
+          alert(resultado.mensaje);
+          localStorage.setItem("usuario", resultado.usuario);
+          localStorage.setItem("binance_id", resultado.binance_id);
+          localStorage.setItem("rol", resultado.rol);
+          toggleModal("login-modal");
+          actualizarInterfazLogin(resultado.usuario, resultado.binance_id, resultado.rol);
+          await cargarInfoUsuarioPorBinance(resultado.binance_id);
+          document.getElementById("btn-recarga-container").classList.remove("hidden");
+          if (resultado.rol === "admin") {
+            await cargarPanelAdmin(resultado.binance_id);
+          }
+        } else {
+          alert("⚠️ " + (resultado.detail || "Error al iniciar sesión"));
+        }
+      } catch (error) {
+        alert("⚠️ Error de conexión.");
+      }
+    }
+
+    async function enviarRegistro(event) {
+      event.preventDefault();
+      const usuarioVal = document.getElementById("input-usuario").value.trim();
+      const emailVal = document.getElementById("input-email").value.trim();
+      const binanceVal = document.getElementById("input-binance").value.trim();
+      const passwordVal = document.getElementById("input-password").value;
+
+      try {
+        const respuesta = await fetch(`${API_URL}/api/registro`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            usuario: usuarioVal,
+            email: emailVal,
+            binance_id: binanceVal,
+            password: passwordVal
+          })
+        });
+        const resultado = await respuesta.json();
+        if (respuesta.ok && resultado.status === "ok") {
+          alert(resultado.mensaje);
+          localStorage.setItem("usuario", resultado.usuario);
+          localStorage.setItem("binance_id", resultado.binance_id);
+          localStorage.setItem("rol", resultado.rol);
+          toggleModal("login-modal");
+          actualizarInterfazLogin(resultado.usuario, resultado.binance_id, resultado.rol);
+          await cargarInfoUsuarioPorBinance(resultado.binance_id);
+          document.getElementById("btn-recarga-container").classList.remove("hidden");
+        } else {
+          alert("⚠️ " + (resultado.detail || "Error en el registro"));
+        }
+      } catch (error) {
+        alert("⚠️ Error de conexión.");
+      }
+    }
+
+    async function enviarRegistroAdminSecreto(event) {
+      event.preventDefault();
+      const usuarioVal = document.getElementById("admin-sec-usuario").value.trim();
+      const emailVal = document.getElementById("admin-sec-email").value.trim();
+      const binanceVal = document.getElementById("admin-sec-binance").value.trim();
+      const passwordVal = document.getElementById("admin-sec-password").value;
+
+      try {
+        const res = await fetch(`${API_URL}/api/admin/registro-secreto`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            usuario: usuarioVal,
+            email: emailVal,
+            binance_id: binanceVal,
+            password: passwordVal
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.status === "ok") {
+          alert("✅ " + data.mensaje);
+          toggleModal("admin-secret-modal");
+          cambiarTabAuth("login");
+          document.getElementById("login-binance").value = binanceVal;
+          toggleModal("login-modal");
+        } else {
+          alert("⚠️ " + (data.detail || "Error al registrar administrador"));
+        }
+      } catch (e) {
+        alert("⚠️ Error de conexión.");
+      }
+    }
+
+    async function solicitarCodigoRecuperacion(event) {
+      event.preventDefault();
+      const emailVal = document.getElementById("recup-email").value.trim();
+      try {
+        const res = await fetch(`${API_URL}/api/recuperar/solicitar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: emailVal })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          let msg = "✅ " + data.mensaje;
+          if (data.codigo_prueba) {
+            msg += `\n\n[Modo Prueba Local - Sin SMTP configurado]\nTu código es: ${data.codigo_prueba}`;
+          }
+          alert(msg);
+          document.getElementById("form-confirmar-recup").classList.remove("hidden");
+        } else {
+          alert("⚠️ " + (data.detail || "No se pudo enviar el código"));
+        }
+      } catch (e) {
+        alert("⚠️ Error de conexión.");
+      }
+    }
+
+    async function confirmarCambioPassword(event) {
+      event.preventDefault();
+      const emailVal = document.getElementById("recup-email").value.trim();
+      const codigoVal = document.getElementById("recup-codigo").value.trim();
+      const nuevaPwdVal = document.getElementById("recup-nueva-pwd").value;
+
+      try {
+        const res = await fetch(`${API_URL}/api/recuperar/confirmar`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: emailVal,
+            codigo: codigoVal,
+            nueva_password: nuevaPwdVal
+          })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ " + data.mensaje);
+          document.getElementById("form-confirmar-recup").classList.add("hidden");
+          cambiarTabAuth("login");
+        } else {
+          alert("⚠️ " + (data.detail || "No se pudo actualizar la contraseña"));
+        }
+      } catch (e) {
+        alert("⚠️ Error de conexión.");
+      }
+    }
+
+    function actualizarInterfazLogin(usuario, binanceId, rol) {
+      const authContainer = document.getElementById("auth-container");
+      const badgeRol = rol === "admin" ? "👑 Admin" : "👤 Usuario";
+      authContainer.innerHTML = `
+        <div class="flex items-center space-x-3">
+          <div class="text-right">
+            <span class="block text-xs text-slate-400">${badgeRol} · ID ${binanceId}</span>
+            <strong class="text-sm text-yellow-400">${usuario}</strong>
+          </div>
+          <button onclick="cerrarSesion()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl text-xs border border-slate-700 transition cursor-pointer">Salir</button>
+        </div>
+      `;
+    }
+
+    async function cargarPanelAdmin(adminBinanceId) {
+      document.getElementById("admin-panel").classList.remove("hidden");
+
+      try {
+        const res = await fetch(`${API_URL}/api/admin/usuarios?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`);
+        const data = await res.json();
+        if (res.ok) {
+          const tabla = document.getElementById("admin-usuarios-tabla");
+          tabla.innerHTML = "";
+          data.usuarios.forEach(u => {
+            const fila = document.createElement("tr");
+            fila.className = "hover:bg-slate-800/40 transition fila-usuario";
+            fila.innerHTML = `
+              <td class="py-3 px-4 text-slate-400">#${u.id}</td>
+              <td class="py-3 px-4 font-semibold text-white nombre-usuario">${u.usuario}</td>
+              <td class="py-3 px-4 text-slate-400 text-xs correo-usuario">${u.email}</td>
+              <td class="py-3 px-4 text-slate-300 font-mono text-xs id-binance">${u.binance_id}</td>
+              <td class="py-3 px-4 font-bold text-yellow-400">$${(u.saldo_usdt || 0).toFixed(2)} USDT</td>
+              <td class="py-3 px-4 text-center space-x-1">
+                <button onclick="ajustarSaldo('${u.binance_id}', '${u.usuario}', 'sumar')" class="bg-green-500/20 hover:bg-green-500 text-green-300 hover:text-slate-950 px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer">+ USDT</button>
+                <button onclick="ajustarSaldo('${u.binance_id}', '${u.usuario}', 'restar')" class="bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-slate-950 px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer">- USDT</button>
+              </td>
+            `;
+            tabla.appendChild(fila);
+          });
+        }
+      } catch (e) { console.error(e); }
+
+      try {
+        const resG = await fetch(`${API_URL}/api/admin/ganadores?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`);
+        const dataG = await resG.json();
+        if (resG.ok) {
+          const tablaG = document.getElementById("admin-ganadores-tabla");
+          tablaG.innerHTML = "";
+          if (dataG.ganadores.length === 0) {
+            tablaG.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-500 text-xs">No hay ganadores pendientes de pago.</td></tr>`;
+          } else {
+            dataG.ganadores.forEach(g => {
+              const fila = document.createElement("tr");
+              fila.className = "hover:bg-slate-800/40 transition";
+              fila.innerHTML = `
+                <td class="py-3 px-4 font-semibold text-yellow-400">${g.nombre_sala}</td>
+                <td class="py-3 px-4 font-extrabold text-white">#${g.numero_ganador}</td>
+                <td class="py-3 px-4 font-semibold text-slate-200">${g.usuario_ganador} <span class="text-xs font-mono text-slate-400">(${g.binance_id_ganador})</span></td>
+                <td class="py-3 px-4 font-bold text-green-400">$${g.premio.toFixed(2)} USDT</td>
+                <td class="py-3 px-4 text-center">
+                  <button onclick="marcarPagado(${g.id})" class="bg-blue-500/20 hover:bg-blue-500 text-blue-300 hover:text-slate-950 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer border border-blue-500/30">
+                    ✓ Pagado y Archivar
+                  </button>
+                </td>
+              `;
+              tablaG.appendChild(fila);
+            });
+          }
+
+          const tablaHist = document.getElementById("admin-historico-tabla");
+          tablaHist.innerHTML = "";
+          if (dataG.historico.length === 0) {
+            tablaHist.innerHTML = `<tr><td colspan="4" class="py-3 text-center text-slate-500">Sin registros históricos aún.</td></tr>`;
+          } else {
+            dataG.historico.forEach(h => {
+              const fila = document.createElement("tr");
+              fila.className = "hover:bg-slate-800/40 transition";
+              fila.innerHTML = `
+                <td class="py-3 px-4">${h.nombre_sala}</td>
+                <td class="py-3 px-4 text-white font-semibold">${h.usuario_ganador} (#${h.numero_ganador}) · <span class="font-mono text-slate-400">${h.binance_id_ganador}</span></td>
+                <td class="py-3 px-4 text-green-400 font-bold">$${h.premio.toFixed(2)} USDT</td>
+                <td class="py-3 px-4 text-slate-500">${h.fecha_pago}</td>
+              `;
+              tablaHist.appendChild(fila);
+            });
+          }
+        }
+      } catch (e) { console.error(e); }
+
+      try {
+        const resLogs = await fetch(`${API_URL}/api/admin/logs?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`);
+        const dataLogs = await resLogs.json();
+        if (resLogs.ok) {
+          const tablaLogs = document.getElementById("admin-logs-tabla");
+          tablaLogs.innerHTML = "";
+          if (dataLogs.logs.length === 0) {
+            tablaLogs.innerHTML = `<tr><td colspan="4" class="py-3 text-center text-slate-500">Sin registros de auditoría aún.</td></tr>`;
+          } else {
+            dataLogs.logs.forEach(l => {
+              const fila = document.createElement("tr");
+              fila.className = "hover:bg-slate-800/40 transition";
+              fila.innerHTML = `
+                <td class="py-3 px-4 font-semibold text-yellow-400">${l.admin_usuario}</td>
+                <td class="py-3 px-4 text-white">${l.accion}</td>
+                <td class="py-3 px-4 text-slate-300">${l.detalle}</td>
+                <td class="py-3 px-4 text-slate-500">${l.fecha}</td>
+              `;
+              tablaLogs.appendChild(fila);
+            });
+          }
+        }
+      } catch (e) { console.error(e); }
+    }
+
+    async function registrarTxAdmin(event) {
+      event.preventDefault();
+      const adminBinanceId = localStorage.getItem("binance_id");
+      const tx_id = document.getElementById("admin-tx-id").value.trim();
+      const monto_usdt = parseFloat(document.getElementById("admin-tx-monto").value);
+
+      try {
+        const res = await fetch(`${API_URL}/api/admin/pagos/registrar-tx?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ tx_id, monto_usdt })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ " + data.mensaje);
+          document.getElementById("admin-tx-id").value = "";
+          document.getElementById("admin-tx-monto").value = "";
+          await cargarPanelAdmin(adminBinanceId);
+        } else {
+          alert("⚠️ " + (data.detail || "Error al registrar TXID"));
+        }
+      } catch (e) {
+        alert("⚠️ Error de conexión.");
+      }
+    }
+
+    async function forzarSorteoPrueba(salaId) {
+      const adminBinanceId = localStorage.getItem("binance_id");
+      if (!confirm(`¿Deseas completar todos los números y sortear de inmediato la Sala #${salaId} para probar el sistema?`)) return;
+
+      try {
+        const res = await fetch(`${API_URL}/api/admin/sala/${salaId}/forzar-sorteo?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ " + data.mensaje);
+          await cargarSalasDisponibles();
+          await cargarMuroFama();
+          await cargarPanelAdmin(adminBinanceId);
+        } else {
+          alert("⚠️ " + (data.detail || "Error al forzar sorteo"));
+        }
+      } catch (e) { alert("⚠️ Error de conexión."); }
+    }
+
+    async function ajustarSaldo(binanceIdObj, nombreObj, tipo) {
+      const adminBinanceId = localStorage.getItem("binance_id");
+      const montoInput = prompt(`¿Cuánto USDT deseas ${tipo === "sumar" ? "sumar a" : "restar a"} ${nombreObj} (Binance ID: ${binanceIdObj})?`, "10");
+      if (!montoInput) return;
+      const monto = parseFloat(montoInput);
+
+      try {
+        const res = await fetch(`${API_URL}/api/admin/usuario/ajustar-saldo?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ binance_id_objetivo: binanceIdObj, monto, tipo })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ " + data.mensaje);
+          await cargarPanelAdmin(adminBinanceId);
+          await cargarInfoUsuarioPorBinance(adminBinanceId);
+        } else {
+          alert("⚠️ " + (data.detail || "Error"));
+        }
+      } catch (e) { alert("⚠️ Error de conexión."); }
+    }
+
+    async function marcarPagado(ganadorId) {
+      const adminBinanceId = localStorage.getItem("binance_id");
+      if (!confirm("¿Confirmas que ya pagaste el premio y deseas moverlo al archivo histórico?")) return;
+
+      try {
+        const res = await fetch(`${API_URL}/api/admin/ganador/${ganadorId}?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`, { method: "DELETE" });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ " + data.mensaje);
+          await cargarPanelAdmin(adminBinanceId);
+          await cargarMuroFama();
+        } else {
+          alert("⚠️ " + (data.detail || "Error al actualizar"));
+        }
+      } catch (e) { alert("⚠️ Error de conexión."); }
+    }
+
+    async function toggleHibernacion() {
+      const adminBinanceId = localStorage.getItem("binance_id");
+      if (!confirm("¿Estás seguro de cambiar el estado del Modo Hibernación (Mantenimiento) de la plataforma?")) return;
+      try {
+        const res = await fetch(`${API_URL}/api/admin/hibernacion/toggle?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`, { method: "POST" });
+        const data = await res.json();
+        if (res.ok) {
+          alert("✅ " + data.mensaje);
+          await cargarPanelAdmin(adminBinanceId);
+        } else {
+          alert("⚠️ " + (data.detail || "Error"));
+        }
+      } catch (e) { alert("⚠️ Error de conexión."); }
+    }
+
+    function cerrarSesion() {
+      localStorage.removeItem("usuario");
+      localStorage.removeItem("binance_id");
+      localStorage.removeItem("rol");
+      location.reload();
+    }
+
+    function filtrarTablaUsuarios() {
+      const filtro = document.getElementById("buscador-usuarios").value.toLowerCase();
+      const filas = document.querySelectorAll(".fila-usuario");
+      filas.forEach(fila => {
+        const nombre = fila.querySelector(".nombre-usuario").innerText.toLowerCase();
+        const correo = fila.querySelector(".correo-usuario").innerText.toLowerCase();
+        const binance = fila.querySelector(".id-binance").innerText.toLowerCase();
+        fila.style.display = (nombre.includes(filtro) || correo.includes(filtro) || binance.includes(filtro)) ? "" : "none";
+      });
+    }
+  </script>
+</body>
+</html>
