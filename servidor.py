@@ -10,20 +10,32 @@ import smtplib
 from email.message import EmailMessage
 from datetime import datetime, timedelta
 
+try:
+    import psycopg2
+    import psycopg2.extras
+    HAS_PSYCOPG2 = True
+except ImportError:
+    HAS_PSYCOPG2 = False
+
 app = FastAPI(title="CryptoRifas API - Producción Blindada")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-BINANCE_ID_OFICIAL = "1115628237"
+BINANCE_ID_OFICIAL = os.getenv("BINANCE_ID_OFICIAL", "1115628237")
 ADMIN_BINANCE_ID_UNICO = "00000000"
 
-# Configuración SMTP opcional (para envío real de correos en producción)
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
+USAR_POSTGRES = bool(DATABASE_URL and HAS_PSYCOPG2)
+
 SMTP_HOST = os.getenv("SMTP_HOST", "")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "")
@@ -35,10 +47,78 @@ CONTRASENAS_COMUNES = {
     "abcd1234", "iloveyou", "welcome1", "cryptorifas", "binance123", "venezuela1"
 }
 
+class DBConnectionWrapper:
+    def __init__(self, raw_conn, is_postgres: bool):
+        self.raw_conn = raw_conn
+        self.is_postgres = is_postgres
+
+    def cursor(self):
+        cur = self.raw_conn.cursor(
+            cursor_factory=psycopg2.extras.RealDictCursor
+        ) if self.is_postgres else self.raw_conn.cursor()
+        return DBCursorWrapper(cur, self.is_postgres)
+
+    def commit(self):
+        self.raw_conn.commit()
+
+    def rollback(self):
+        self.raw_conn.rollback()
+
+    def close(self):
+        self.raw_conn.close()
+
+class DBCursorWrapper:
+    def __init__(self, raw_cursor, is_postgres: bool):
+        self.raw_cursor = raw_cursor
+        self.is_postgres = is_postgres
+
+    def _adapt_sql(self, sql: str) -> str:
+        if not self.is_postgres:
+            return sql
+        adapted = sql.replace("?", "%s")
+        adapted = adapted.replace(
+            "INTEGER PRIMARY KEY AUTOINCREMENT",
+            "SERIAL PRIMARY KEY"
+        )
+        adapted = adapted.replace(
+            "DATETIME DEFAULT CURRENT_TIMESTAMP",
+            "TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        )
+        return adapted
+
+    def execute(self, sql: str, params=()):
+        query = self._adapt_sql(sql)
+        if self.is_postgres and query.strip().upper().startswith("INSERT OR IGNORE"):
+            query = query.replace("INSERT OR IGNORE", "INSERT", 1)
+            if "ON CONFLICT" not in query.upper():
+                query = query.rstrip().rstrip(";") + " ON CONFLICT DO NOTHING"
+        self.raw_cursor.execute(query, params)
+        return self
+
+    def fetchone(self):
+        return self.raw_cursor.fetchone()
+
+    def fetchall(self):
+        return self.raw_cursor.fetchall()
+
+    @property
+    def rowcount(self):
+        return self.raw_cursor.rowcount
+
 def get_conn():
+    if USAR_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL)
+        return DBConnectionWrapper(conn, True)
     conn = sqlite3.connect("cryptorifas.db")
     conn.row_factory = sqlite3.Row
-    return conn
+    return DBConnectionWrapper(conn, False)
+
+def es_error_duplicado(exc: Exception) -> bool:
+    if USAR_POSTGRES and isinstance(exc, psycopg2.IntegrityError):
+        return True
+    if isinstance(exc, sqlite3.IntegrityError):
+        return True
+    return False
 
 def hash_password(password: str) -> str:
     salt = os.urandom(16).hex()
@@ -156,7 +236,6 @@ def init_db():
         )
     """)
 
-    # Tabla de transacciones verificadas de Binance Pay (para acreditar monto exacto sin entrada manual)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS binance_pagos_verificados (
             tx_id TEXT PRIMARY KEY,
@@ -190,14 +269,18 @@ def init_db():
     ]
 
     for s_id, s_nombre, s_precio, s_total, s_porc in salas_default:
-        cursor.execute("SELECT COUNT(*) FROM salas WHERE id = ?", (s_id,))
-        if cursor.fetchone()[0] == 0:
+        cursor.execute("SELECT COUNT(*) AS total FROM salas WHERE id = ?", (s_id,))
+        row = cursor.fetchone()
+        cnt = row["total"] if isinstance(row, dict) else row[0]
+        if cnt == 0:
             cursor.execute(
                 "INSERT INTO salas (id, nombre, precio_ticket, total_tickets, porcentaje_premio, estado) VALUES (?, ?, ?, ?, ?, 'activa')",
                 (s_id, s_nombre, s_precio, s_total, s_porc)
             )
 
-    # Pagos de ejemplo pre-registrados para pruebas de verificación automática
+    if USAR_POSTGRES:
+        cursor.execute("SELECT setval(pg_get_serial_sequence('salas', 'id'), COALESCE((SELECT MAX(id) FROM salas), 1))")
+
     pagos_demo = [
         ("TX1000001", 10.0),
         ("TX1000002", 20.0),
@@ -320,11 +403,6 @@ def enviar_correo_codigo(destinatario: str, codigo: str) -> bool:
     return True
 
 def verificar_transaccion_binance(tx_id: str) -> float:
-    """
-    Consulta el monto real verificado de una transacción en Binance Pay.
-    En producción se conecta al endpoint oficial de Binance Pay Merchant / Pay API
-    usando el tx_id para leer el monto exacto pagado.
-    """
     conn = get_conn()
     cursor = conn.cursor()
     cursor.execute(
@@ -354,10 +432,11 @@ def raiz():
 def verificar_admin_existe():
     conn = get_conn()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM usuarios WHERE rol = 'admin'")
-    existe = cursor.fetchone()[0] > 0
+    cursor.execute("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'admin'")
+    row = cursor.fetchone()
+    cnt = row["total"] if isinstance(row, dict) else row[0]
     conn.close()
-    return {"status": "ok", "existe_admin": existe}
+    return {"status": "ok", "existe_admin": cnt > 0}
 
 @app.post("/api/admin/registro-secreto")
 def registrar_admin_unico(datos: RegistroAdminSecreto):
@@ -376,8 +455,10 @@ def registrar_admin_unico(datos: RegistroAdminSecreto):
 
     conn = get_conn()
     cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM usuarios WHERE rol = 'admin'")
-    if cursor.fetchone()[0] > 0:
+    cursor.execute("SELECT COUNT(*) AS total FROM usuarios WHERE rol = 'admin'")
+    row = cursor.fetchone()
+    cnt = row["total"] if isinstance(row, dict) else row[0]
+    if cnt > 0:
         conn.close()
         raise HTTPException(status_code=403, detail="El administrador único ya fue registrado. No se permiten más registros.")
 
@@ -388,9 +469,11 @@ def registrar_admin_unico(datos: RegistroAdminSecreto):
             (usuario_limpio, email_limpio, binance_limpio, hash_password(datos.password))
         )
         conn.commit()
-    except sqlite3.IntegrityError:
+    except Exception as e:
         conn.close()
-        raise HTTPException(status_code=400, detail="El correo o ID ya se encuentra registrado.")
+        if es_error_duplicado(e):
+            raise HTTPException(status_code=400, detail="El correo o ID ya se encuentra registrado.")
+        raise HTTPException(status_code=500, detail="Error al registrar administrador.")
     conn.close()
 
     registrar_auditoria(usuario_limpio, "REGISTRO_ADMIN", "Administrador único registrado mediante acceso secreto.")
@@ -440,12 +523,14 @@ def registrar_usuario(datos: RegistroUsuario):
             (usuario_limpio, email_limpio, binance_limpio, hash_password(datos.password))
         )
         conn.commit()
-    except sqlite3.IntegrityError as e:
+    except Exception as e:
         conn.close()
-        err = str(e).lower()
-        if "email" in err:
-            raise HTTPException(status_code=400, detail="Este correo electrónico ya está registrado.")
-        raise HTTPException(status_code=400, detail="Este ID de Binance ya está registrado en otra cuenta.")
+        if es_error_duplicado(e):
+            err = str(e).lower()
+            if "email" in err:
+                raise HTTPException(status_code=400, detail="Este correo electrónico ya está registrado.")
+            raise HTTPException(status_code=400, detail="Este ID de Binance ya está registrado en otra cuenta.")
+        raise HTTPException(status_code=500, detail="Error al registrar usuario.")
     conn.close()
 
     return {
@@ -527,7 +612,6 @@ def solicitar_recuperacion_password(datos: SolicitudRecuperacion):
         "status": "ok",
         "mensaje": "Hemos enviado un código de verificación de 6 dígitos a tu correo electrónico."
     }
-    # Si no hay servidor SMTP configurado aún en entorno local, enviamos aviso de prueba
     if not enviado_smtp:
         respuesta["codigo_prueba"] = codigo
     return respuesta
@@ -592,7 +676,7 @@ def obtener_info_usuario_por_binance(binance_id: str):
         "usuario": res["usuario"],
         "email": res["email"],
         "binance_id": res["binance_id"],
-        "saldo_usdt": res["saldo_usdt"],
+        "saldo_usdt": float(res["saldo_usdt"]),
         "rol": res["rol"],
         "binance_id_oficial": BINANCE_ID_OFICIAL
     }
@@ -623,7 +707,6 @@ def recargar_binance(datos: RecargaBinance):
 
     conn.close()
 
-    # Verificación automática del monto real pagado en Binance Pay
     monto_verificado = verificar_transaccion_binance(tx_id_limpio)
     if monto_verificado <= 0:
         raise HTTPException(status_code=400, detail="El monto verificado del pago no es válido.")
@@ -640,10 +723,12 @@ def recargar_binance(datos: RecargaBinance):
             (monto_verificado, binance_limpio)
         )
         conn.commit()
-    except sqlite3.IntegrityError:
+    except Exception as e:
         conn.rollback()
         conn.close()
-        raise HTTPException(status_code=400, detail="Error: TXID duplicado.")
+        if es_error_duplicado(e):
+            raise HTTPException(status_code=400, detail="Error: TXID duplicado.")
+        raise HTTPException(status_code=500, detail="Error al acreditar recarga.")
     finally:
         conn.close()
 
@@ -661,10 +746,11 @@ def listar_salas():
     salas = []
     for row in cursor.fetchall():
         s = dict(row)
-        cursor.execute("SELECT COUNT(*) FROM tickets_comprados WHERE sala_id = ?", (s["id"],))
-        s["tickets_vendidos"] = cursor.fetchone()[0]
-        s["pozo_total"] = s["total_tickets"] * s["precio_ticket"]
-        s["premio_estimado"] = s["pozo_total"] * s["porcentaje_premio"]
+        cursor.execute("SELECT COUNT(*) AS total FROM tickets_comprados WHERE sala_id = ?", (s["id"],))
+        cnt_row = cursor.fetchone()
+        s["tickets_vendidos"] = cnt_row["total"] if isinstance(cnt_row, dict) else cnt_row[0]
+        s["pozo_total"] = float(s["total_tickets"]) * float(s["precio_ticket"])
+        s["premio_estimado"] = float(s["pozo_total"]) * float(s["porcentaje_premio"])
         salas.append(s)
     conn.close()
     return {"status": "ok", "salas": salas, "binance_id_oficial": BINANCE_ID_OFICIAL}
@@ -692,7 +778,7 @@ def obtener_numeros_sala(sala_id: int):
         "status": "ok",
         "nombre_sala": sala_info["nombre"],
         "total_tickets": sala_info["total_tickets"],
-        "precio_ticket": sala_info["precio_ticket"],
+        "precio_ticket": float(sala_info["precio_ticket"]),
         "tickets_comprados": comprados
     }
 
@@ -723,14 +809,14 @@ def comprar_ticket(datos: CompraTicket):
         conn.close()
         raise HTTPException(status_code=404, detail="Usuario no encontrado.")
 
-    if user_res["saldo_usdt"] < sala["precio_ticket"]:
+    if float(user_res["saldo_usdt"]) < float(sala["precio_ticket"]):
         conn.close()
         raise HTTPException(status_code=400, detail="Saldo insuficiente.")
 
     try:
         cursor.execute(
             "UPDATE usuarios SET saldo_usdt = ROUND(saldo_usdt - ?, 2) WHERE binance_id = ? AND saldo_usdt >= ?",
-            (sala["precio_ticket"], binance_limpio, sala["precio_ticket"])
+            (float(sala["precio_ticket"]), binance_limpio, float(sala["precio_ticket"]))
         )
         if cursor.rowcount == 0:
             conn.rollback()
@@ -742,13 +828,16 @@ def comprar_ticket(datos: CompraTicket):
             (datos.sala_id, datos.numero, user_res["usuario"], binance_limpio)
         )
         conn.commit()
-    except sqlite3.IntegrityError:
+    except Exception as e:
         conn.rollback()
         conn.close()
-        raise HTTPException(status_code=400, detail="¡Este número ya fue comprado!")
+        if es_error_duplicado(e):
+            raise HTTPException(status_code=400, detail="¡Este número ya fue comprado!")
+        raise HTTPException(status_code=500, detail="Error al comprar ticket.")
 
-    cursor.execute("SELECT COUNT(*) FROM tickets_comprados WHERE sala_id = ?", (datos.sala_id,))
-    total_vendidos = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) AS total FROM tickets_comprados WHERE sala_id = ?", (datos.sala_id,))
+    cnt_row = cursor.fetchone()
+    total_vendidos = cnt_row["total"] if isinstance(cnt_row, dict) else cnt_row[0]
     mensaje_extra = f"¡Número #{datos.numero} comprado en {sala['nombre']}!"
 
     if total_vendidos >= sala["total_tickets"]:
@@ -759,7 +848,7 @@ def comprar_ticket(datos: CompraTicket):
         todos_los_tickets = cursor.fetchall()
         if todos_los_tickets:
             ganador = random.choice(todos_los_tickets)
-            premio_pozo = round((sala["total_tickets"] * sala["precio_ticket"]) * sala["porcentaje_premio"], 2)
+            premio_pozo = round((sala["total_tickets"] * float(sala["precio_ticket"])) * float(sala["porcentaje_premio"]), 2)
 
             cursor.execute(
                 """INSERT INTO historial_ganadores
@@ -786,10 +875,18 @@ def registrar_pago_verificado_admin(datos: RegistrarPagoBinanceAdmin, binance_id
     tx_limpio = datos.tx_id.strip().upper()
     conn = get_conn()
     cursor = conn.cursor()
-    cursor.execute(
-        "INSERT OR REPLACE INTO binance_pagos_verificados (tx_id, monto_usdt, estado) VALUES (?, ?, 'completado')",
-        (tx_limpio, round(datos.monto_usdt, 2))
-    )
+    if USAR_POSTGRES:
+        cursor.execute(
+            """INSERT INTO binance_pagos_verificados (tx_id, monto_usdt, estado)
+               VALUES (?, ?, 'completado')
+               ON CONFLICT (tx_id) DO UPDATE SET monto_usdt = EXCLUDED.monto_usdt, estado = 'completado'""",
+            (tx_limpio, round(datos.monto_usdt, 2))
+        )
+    else:
+        cursor.execute(
+            "INSERT OR REPLACE INTO binance_pagos_verificados (tx_id, monto_usdt, estado) VALUES (?, ?, 'completado')",
+            (tx_limpio, round(datos.monto_usdt, 2))
+        )
     conn.commit()
     conn.close()
 
@@ -845,8 +942,8 @@ def forzar_sorteo_prueba(sala_id: int, binance_id_verificacion: str):
                     "INSERT INTO tickets_comprados (sala_id, numero, usuario, binance_id) VALUES (?, ?, ?, ?)",
                     (sala_id, i, nombre_test, binance_test)
                 )
-            except sqlite3.IntegrityError:
-                pass
+            except Exception:
+                conn.rollback()
     conn.commit()
 
     cursor.execute(
@@ -855,7 +952,7 @@ def forzar_sorteo_prueba(sala_id: int, binance_id_verificacion: str):
     )
     todos = cursor.fetchall()
     ganador = random.choice(todos)
-    premio_pozo = round((sala["total_tickets"] * sala["precio_ticket"]) * sala["porcentaje_premio"], 2)
+    premio_pozo = round((sala["total_tickets"] * float(sala["precio_ticket"])) * float(sala["porcentaje_premio"]), 2)
 
     cursor.execute(
         """INSERT INTO historial_ganadores
@@ -899,7 +996,7 @@ def ajustar_saldo_usuario(datos: AjusteSaldo, binance_id_verificacion: str):
             (datos.monto, objetivo_id)
         )
     else:
-        nuevo_saldo = max(0.0, round(objetivo["saldo_usdt"] - datos.monto, 2))
+        nuevo_saldo = max(0.0, round(float(objetivo["saldo_usdt"]) - datos.monto, 2))
         cursor.execute(
             "UPDATE usuarios SET saldo_usdt = ? WHERE binance_id = ?",
             (nuevo_saldo, objetivo_id)
@@ -981,3 +1078,8 @@ def obtener_logs_auditoria(binance_id_verificacion: str):
     logs = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return {"status": "ok", "logs": logs}
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("servidor:app", host="0.0.0.0", port=port, reload=False)
