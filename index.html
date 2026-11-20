@@ -174,19 +174,10 @@
 
     <!-- SALAS DINÁMICAS -->
     <section>
-      <div class="flex flex-wrap items-center justify-between gap-2 mb-6">
-        <h2 class="text-2xl font-bold flex items-center gap-2">
-          🔥 <span class="border-b-2 border-yellow-400 pb-1">Salas Disponibles</span>
-        </h2>
-        <button onclick="cargarSalasDisponibles(true)" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-xl text-xs font-semibold border border-slate-700 transition cursor-pointer">
-          🔄 Actualizar Salas
-        </button>
-      </div>
-      <div id="grid-salas" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div class="col-span-full bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center text-slate-400 text-sm">
-          Conectando con el servidor de CryptoRifas...
-        </div>
-      </div>
+      <h2 class="text-2xl font-bold mb-6 flex items-center gap-2">
+        🔥 <span class="border-b-2 border-yellow-400 pb-1">Salas Disponibles</span>
+      </h2>
+      <div id="grid-salas" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </section>
 
     <!-- MURO DE LA FAMA (PÚBLICO) -->
@@ -441,6 +432,7 @@
       "abcd1234", "iloveyou", "welcome1", "cryptorifas", "binance123", "venezuela1"
     ];
 
+    // Atajo secreto Ctrl + Alt + 4 para abrir el registro único de Administrador
     document.addEventListener("keydown", async (e) => {
       if (e.ctrlKey && e.altKey && (e.key === "4" || e.code === "Digit4")) {
         e.preventDefault();
@@ -458,7 +450,7 @@
       }
     });
 
-    document.addEventListener("DOMContentLoaded", async () => {
+    document.addEventListener("DOMContentLoaded", () => {
       const usuarioGuardado = localStorage.getItem("usuario");
       const binanceGuardado = localStorage.getItem("binance_id");
       const rolGuardado = localStorage.getItem("rol");
@@ -471,13 +463,8 @@
           cargarPanelAdmin(binanceGuardado);
         }
       }
-
-      try {
-        await fetch(`${API_URL}/health`, { cache: "no-store" });
-      } catch (_) {}
-
-      await cargarSalasDisponibles(true);
-      await cargarMuroFama(true);
+      cargarSalasDisponibles();
+      cargarMuroFama();
     });
 
     function toggleModal(modalId) {
@@ -573,103 +560,72 @@
       el.className = cumplido ? "text-green-400 font-semibold" : "text-slate-400";
     }
 
-    async function cargarSalasDisponibles(reintentar = false) {
-      const grid = document.getElementById("grid-salas");
+    async function cargarSalasDisponibles() {
       try {
-        const res = await fetch(`${API_URL}/api/salas`, { cache: "no-store" });
+        const res = await fetch(`${API_URL}/api/salas`);
         const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.detail || `HTTP ${res.status}`);
+        if (res.ok) {
+          const grid = document.getElementById("grid-salas");
+          grid.innerHTML = "";
+          data.salas.forEach(sala => {
+            const porcentaje = (sala.tickets_vendidos / sala.total_tickets) * 100;
+            const restantes = sala.total_tickets - sala.tickets_vendidos;
+
+            const card = document.createElement("div");
+            card.className = "bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl flex flex-col justify-between hover:border-slate-700 transition";
+            card.innerHTML = `
+              <div>
+                <div class="flex justify-between items-center mb-4">
+                  <span class="bg-green-500/10 text-green-400 text-xs font-bold px-3 py-1 rounded-full border border-green-500/20">🟢 ${sala.nombre}</span>
+                  <span class="text-xs text-slate-400">Ticket: $${sala.precio_ticket.toFixed(2)} USDT</span>
+                </div>
+                <h3 class="text-3xl font-extrabold text-yellow-400 mb-1">$${sala.premio_estimado.toFixed(2)} USDT</h3>
+                <p class="text-slate-400 text-sm mb-6">Premio al ganador</p>
+                <div class="w-full bg-slate-800 rounded-full h-3 mb-2 overflow-hidden">
+                  <div class="bg-yellow-500 h-3 rounded-full transition-all duration-300" style="width: ${porcentaje}%"></div>
+                </div>
+                <div class="flex justify-between text-xs text-slate-400 mb-6">
+                  <span>${sala.tickets_vendidos} / ${sala.total_tickets} Vendidos</span>
+                  <span class="text-yellow-400 font-semibold">${restantes} Restantes</span>
+                </div>
+              </div>
+              <button onclick="abrirSelectorNumeros(${sala.id})" class="w-full bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-yellow-500/10 cursor-pointer">
+                Elegir Mis Números
+              </button>
+            `;
+            grid.appendChild(card);
+          });
         }
-
-        grid.innerHTML = "";
-        (data.salas || []).forEach(sala => {
-          const vendidos = Number(sala.tickets_vendidos || 0);
-          const total = Math.max(1, Number(sala.total_tickets || 100));
-          const precio = Number(sala.precio_ticket || 0);
-          const premio = Number(sala.premio_estimado || 0);
-          const porcentaje = Math.min(100, Math.max(0, (vendidos / total) * 100));
-          const restantes = Math.max(0, total - vendidos);
-
-          const card = document.createElement("div");
-          card.className = "bg-slate-900 rounded-2xl p-6 border border-slate-800 shadow-xl flex flex-col justify-between hover:border-slate-700 transition";
-          card.innerHTML = `
-            <div>
-              <div class="flex justify-between items-center mb-4">
-                <span class="bg-green-500/10 text-green-400 text-xs font-bold px-3 py-1 rounded-full border border-green-500/20">🟢 ${sala.nombre}</span>
-                <span class="text-xs text-slate-400">Ticket: $${precio.toFixed(2)} USDT</span>
-              </div>
-              <h3 class="text-3xl font-extrabold text-yellow-400 mb-1">$${premio.toFixed(2)} USDT</h3>
-              <p class="text-slate-400 text-sm mb-6">Premio al ganador</p>
-              <div class="w-full bg-slate-800 rounded-full h-3 mb-2 overflow-hidden">
-                <div class="bg-yellow-500 h-3 rounded-full transition-all duration-300" style="width: ${porcentaje}%"></div>
-              </div>
-              <div class="flex justify-between text-xs text-slate-400 mb-6">
-                <span>${vendidos} / ${total} Vendidos</span>
-                <span class="text-yellow-400 font-semibold">${restantes} Restantes</span>
-              </div>
-            </div>
-            <button onclick="abrirSelectorNumeros(${Number(sala.id)})" class="w-full bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold py-3 rounded-xl transition shadow-lg shadow-yellow-500/10 cursor-pointer">
-              Elegir Mis Números
-            </button>
-          `;
-          grid.appendChild(card);
-        });
       } catch (err) {
         console.error("Error al cargar salas:", err);
-        if (reintentar) {
-          grid.innerHTML = `
-            <div class="col-span-full bg-slate-900/60 border border-slate-800 rounded-2xl p-6 text-center text-yellow-300 text-sm">
-              Despertando servidor en Render... reintentando en unos segundos.
-            </div>
-          `;
-          setTimeout(() => cargarSalasDisponibles(false), 3500);
-        } else {
-          grid.innerHTML = `
-            <div class="col-span-full bg-slate-900/60 border border-red-500/30 rounded-2xl p-6 text-center text-red-300 text-sm space-y-2">
-              <p>No se pudieron cargar las salas desde <strong>${API_URL}</strong>.</p>
-              <button onclick="cargarSalasDisponibles(true)" class="bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold px-4 py-1.5 rounded-xl text-xs cursor-pointer">
-                Reintentar ahora
-              </button>
-            </div>
-          `;
-        }
       }
     }
 
-    async function cargarMuroFama(reintentar = false) {
-      const tabla = document.getElementById("muro-fama-tabla");
+    async function cargarMuroFama() {
       try {
-        const res = await fetch(`${API_URL}/api/ganadores-publicos`, { cache: "no-store" });
+        const res = await fetch(`${API_URL}/api/ganadores-publicos`);
         const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.detail || `HTTP ${res.status}`);
-        }
-
-        tabla.innerHTML = "";
-        if (!data.ganadores || data.ganadores.length === 0) {
-          tabla.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-slate-500 text-xs">Aún no hay ganadores registrados. ¡Sé el primero en ganar!</td></tr>`;
-        } else {
-          data.ganadores.forEach(g => {
-            const premioNum = Number(g.premio || 0);
-            const fila = document.createElement("tr");
-            fila.className = "hover:bg-slate-800/40 transition";
-            fila.innerHTML = `
-              <td class="py-3 px-4 font-semibold text-yellow-400">${g.nombre_sala}</td>
-              <td class="py-3 px-4 text-white font-bold">${g.usuario_ganador} <span class="text-slate-400">(#${g.numero_ganador})</span></td>
-              <td class="py-3 px-4 font-extrabold text-green-400">$${premioNum.toFixed(2)} USDT</td>
-              <td class="py-3 px-4 text-slate-400">${g.fecha_pago || ""}</td>
-            `;
-            tabla.appendChild(fila);
-          });
+        if (res.ok) {
+          const tabla = document.getElementById("muro-fama-tabla");
+          tabla.innerHTML = "";
+          if (data.ganadores.length === 0) {
+            tabla.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-slate-500 text-xs">Aún no hay ganadores registrados. ¡Sé el primero en ganar!</td></tr>`;
+          } else {
+            data.ganadores.forEach(g => {
+              const fila = document.createElement("tr");
+              fila.className = "hover:bg-slate-800/40 transition";
+              fila.innerHTML = `
+                <td class="py-3 px-4 font-semibold text-yellow-400">${g.nombre_sala}</td>
+                <td class="py-3 px-4 text-white font-bold">${g.usuario_ganador} <span class="text-slate-400">(#${g.numero_ganador})</span></td>
+                <td class="py-3 px-4 font-extrabold text-green-400">$${g.premio.toFixed(2)} USDT</td>
+                <td class="py-3 px-4 text-slate-400">${g.fecha_pago}</td>
+              `;
+              tabla.appendChild(fila);
+            });
+          }
         }
       } catch (e) {
         console.error("Error al cargar muro de fama:", e);
-        if (reintentar) {
-          setTimeout(() => cargarMuroFama(false), 3500);
-        } else {
-          tabla.innerHTML = `<tr><td colspan="4" class="py-4 text-center text-slate-400 text-xs">No se pudo cargar el Muro de la Fama en este momento.</td></tr>`;
-        }
       }
     }
 
@@ -703,10 +659,10 @@
 
     async function cargarInfoUsuarioPorBinance(binanceId) {
       try {
-        const res = await fetch(`${API_URL}/api/usuario/binance/${encodeURIComponent(binanceId.trim())}`, { cache: "no-store" });
+        const res = await fetch(`${API_URL}/api/usuario/binance/${encodeURIComponent(binanceId.trim())}`);
         const data = await res.json();
         if (res.ok) {
-          saldoUsuario = Number(data.saldo_usdt || 0.0);
+          saldoUsuario = data.saldo_usdt || 0.0;
           document.getElementById("user-saldo").innerText = `$${saldoUsuario.toFixed(2)} USDT`;
         }
       } catch (err) {
@@ -724,20 +680,18 @@
       await cargarInfoUsuarioPorBinance(binanceId);
 
       try {
-        const res = await fetch(`${API_URL}/api/sala/${salaId}/numeros`, { cache: "no-store" });
+        const res = await fetch(`${API_URL}/api/sala/${salaId}/numeros`);
         const data = await res.json();
         if (res.ok) {
-          ticketsData = data.tickets_comprados || {};
-          totalTicketsSalaActual = Number(data.total_tickets || 100);
-          precioTicketActual = Number(data.precio_ticket || 2.0);
+          ticketsData = data.tickets_comprados;
+          totalTicketsSalaActual = data.total_tickets;
+          precioTicketActual = data.precio_ticket;
 
           document.getElementById("titulo-modal-sala").innerText = `Elegir Números - ${data.nombre_sala}`;
           document.getElementById("subtitulo-modal-tickets").innerHTML = `Tu saldo disponible es <strong>$${saldoUsuario.toFixed(2)} USDT</strong> (Costo: $${precioTicketActual.toFixed(2)}).`;
 
           renderizarNumeros();
           toggleModal("numeros-modal");
-        } else {
-          alert("⚠️ " + (data.detail || "No se pudo abrir la sala."));
         }
       } catch (err) {
         alert("⚠️ Error al conectar con la sala.");
@@ -1006,12 +960,12 @@
       document.getElementById("admin-panel").classList.remove("hidden");
 
       try {
-        const res = await fetch(`${API_URL}/api/admin/usuarios?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`, { cache: "no-store" });
+        const res = await fetch(`${API_URL}/api/admin/usuarios?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`);
         const data = await res.json();
         if (res.ok) {
           const tabla = document.getElementById("admin-usuarios-tabla");
           tabla.innerHTML = "";
-          (data.usuarios || []).forEach(u => {
+          data.usuarios.forEach(u => {
             const fila = document.createElement("tr");
             fila.className = "hover:bg-slate-800/40 transition fila-usuario";
             fila.innerHTML = `
@@ -1019,7 +973,7 @@
               <td class="py-3 px-4 font-semibold text-white nombre-usuario">${u.usuario}</td>
               <td class="py-3 px-4 text-slate-400 text-xs correo-usuario">${u.email}</td>
               <td class="py-3 px-4 text-slate-300 font-mono text-xs id-binance">${u.binance_id}</td>
-              <td class="py-3 px-4 font-bold text-yellow-400">$${Number(u.saldo_usdt || 0).toFixed(2)} USDT</td>
+              <td class="py-3 px-4 font-bold text-yellow-400">$${(u.saldo_usdt || 0).toFixed(2)} USDT</td>
               <td class="py-3 px-4 text-center space-x-1">
                 <button onclick="ajustarSaldo('${u.binance_id}', '${u.usuario}', 'sumar')" class="bg-green-500/20 hover:bg-green-500 text-green-300 hover:text-slate-950 px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer">+ USDT</button>
                 <button onclick="ajustarSaldo('${u.binance_id}', '${u.usuario}', 'restar')" class="bg-red-500/20 hover:bg-red-500 text-red-300 hover:text-slate-950 px-2.5 py-1 rounded text-xs font-bold transition cursor-pointer">- USDT</button>
@@ -1031,12 +985,12 @@
       } catch (e) { console.error(e); }
 
       try {
-        const resG = await fetch(`${API_URL}/api/admin/ganadores?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`, { cache: "no-store" });
+        const resG = await fetch(`${API_URL}/api/admin/ganadores?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`);
         const dataG = await resG.json();
         if (resG.ok) {
           const tablaG = document.getElementById("admin-ganadores-tabla");
           tablaG.innerHTML = "";
-          if (!dataG.ganadores || dataG.ganadores.length === 0) {
+          if (dataG.ganadores.length === 0) {
             tablaG.innerHTML = `<tr><td colspan="5" class="py-4 text-center text-slate-500 text-xs">No hay ganadores pendientes de pago.</td></tr>`;
           } else {
             dataG.ganadores.forEach(g => {
@@ -1046,7 +1000,7 @@
                 <td class="py-3 px-4 font-semibold text-yellow-400">${g.nombre_sala}</td>
                 <td class="py-3 px-4 font-extrabold text-white">#${g.numero_ganador}</td>
                 <td class="py-3 px-4 font-semibold text-slate-200">${g.usuario_ganador} <span class="text-xs font-mono text-slate-400">(${g.binance_id_ganador})</span></td>
-                <td class="py-3 px-4 font-bold text-green-400">$${Number(g.premio || 0).toFixed(2)} USDT</td>
+                <td class="py-3 px-4 font-bold text-green-400">$${g.premio.toFixed(2)} USDT</td>
                 <td class="py-3 px-4 text-center">
                   <button onclick="marcarPagado(${g.id})" class="bg-blue-500/20 hover:bg-blue-500 text-blue-300 hover:text-slate-950 px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer border border-blue-500/30">
                     ✓ Pagado y Archivar
@@ -1059,7 +1013,7 @@
 
           const tablaHist = document.getElementById("admin-historico-tabla");
           tablaHist.innerHTML = "";
-          if (!dataG.historico || dataG.historico.length === 0) {
+          if (dataG.historico.length === 0) {
             tablaHist.innerHTML = `<tr><td colspan="4" class="py-3 text-center text-slate-500">Sin registros históricos aún.</td></tr>`;
           } else {
             dataG.historico.forEach(h => {
@@ -1068,8 +1022,8 @@
               fila.innerHTML = `
                 <td class="py-3 px-4">${h.nombre_sala}</td>
                 <td class="py-3 px-4 text-white font-semibold">${h.usuario_ganador} (#${h.numero_ganador}) · <span class="font-mono text-slate-400">${h.binance_id_ganador}</span></td>
-                <td class="py-3 px-4 text-green-400 font-bold">$${Number(h.premio || 0).toFixed(2)} USDT</td>
-                <td class="py-3 px-4 text-slate-500">${h.fecha_pago || ""}</td>
+                <td class="py-3 px-4 text-green-400 font-bold">$${h.premio.toFixed(2)} USDT</td>
+                <td class="py-3 px-4 text-slate-500">${h.fecha_pago}</td>
               `;
               tablaHist.appendChild(fila);
             });
@@ -1078,12 +1032,12 @@
       } catch (e) { console.error(e); }
 
       try {
-        const resLogs = await fetch(`${API_URL}/api/admin/logs?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`, { cache: "no-store" });
+        const resLogs = await fetch(`${API_URL}/api/admin/logs?binance_id_verificacion=${encodeURIComponent(adminBinanceId)}`);
         const dataLogs = await resLogs.json();
         if (resLogs.ok) {
           const tablaLogs = document.getElementById("admin-logs-tabla");
           tablaLogs.innerHTML = "";
-          if (!dataLogs.logs || dataLogs.logs.length === 0) {
+          if (dataLogs.logs.length === 0) {
             tablaLogs.innerHTML = `<tr><td colspan="4" class="py-3 text-center text-slate-500">Sin registros de auditoría aún.</td></tr>`;
           } else {
             dataLogs.logs.forEach(l => {
@@ -1093,7 +1047,7 @@
                 <td class="py-3 px-4 font-semibold text-yellow-400">${l.admin_usuario}</td>
                 <td class="py-3 px-4 text-white">${l.accion}</td>
                 <td class="py-3 px-4 text-slate-300">${l.detalle}</td>
-                <td class="py-3 px-4 text-slate-500">${l.fecha || ""}</td>
+                <td class="py-3 px-4 text-slate-500">${l.fecha}</td>
               `;
               tablaLogs.appendChild(fila);
             });
